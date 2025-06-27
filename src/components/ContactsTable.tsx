@@ -213,11 +213,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                   <div className="overflow-x-auto">
                                     <div className="flex space-x-8 min-w-max">
                                       {/* Lead Information */}
-                                      <div className={`min-w-[300px] space-y-2 ${
-                                        editingContact === contact.id && editingSection === 'lead' 
-                                          ? 'border-2 border-blue-500 rounded-lg p-4 bg-blue-50' 
-                                          : ''
-                                      }`}>
+                                      <div className="min-w-[300px] space-y-2">
                                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                           <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                                             <User className="w-5 h-5 mr-2 text-blue-500" />
@@ -237,26 +233,27 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           { field: 'last_name', label: 'Last Name', value: contact.last_name },
                                           { field: 'job_title', label: 'Job Title', value: contact.job_title },
                                           { field: 'work_email', label: 'Work Email', value: contact.work_email, isClickable: true },
+                                          { field: 'company_join_date', label: 'Company Join Date', value: formatJoinDate(contact.current_company_join_month, contact.current_company_join_year), isEditable: false },
                                           { field: 'lead_country', label: 'Country', value: contact.lead_country },
                                           { field: 'connection_count', label: 'LinkedIn Connections', value: contact.connection_count?.toLocaleString() },
                                           { field: 'followers_count', label: 'LinkedIn Followers', value: contact.followers_count?.toLocaleString() }
-                                        ].map(({ field, label, value, isClickable }) => (
+                                        ].map(({ field, label, value, isClickable, isEditable = true }) => (
                                           <div key={field} className="flex items-center py-1.5">
                                             <span className="text-sm font-medium text-gray-700 min-w-[160px]">{label}: </span>
                                             <div className="flex items-center space-x-2 flex-1">
                                               {editingContact === contact.id && editingSection === 'lead' && editingField === field ? (
-                                                <div className="flex items-center space-x-2 w-full">
+                                                <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                   <input
                                                     type={field.includes('count') ? 'number' : 'text'}
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                     autoFocus
                                                   />
-                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                     <Save className="w-4 h-4" />
                                                   </button>
-                                                  <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                     <X className="w-4 h-4" />
                                                   </button>
                                                 </div>
@@ -267,9 +264,13 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                       href={field === 'work_email' ? `mailto:${value}` : value}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
-                                                      className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer"
+                                                      className={`text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer ${
+                                                        editingContact === contact.id && editingSection === 'lead' && isEditable
+                                                          ? 'hover:bg-gray-100 px-2 py-1 rounded' 
+                                                          : ''
+                                                      }`}
                                                       onClick={(e) => {
-                                                        if (editingContact === contact.id && editingSection === 'lead') {
+                                                        if (editingContact === contact.id && editingSection === 'lead' && isEditable) {
                                                           e.preventDefault();
                                                           startEditing(contact.id, field, value || '');
                                                         }
@@ -280,12 +281,12 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                   ) : (
                                                     <span 
                                                       className={`text-sm text-gray-900 flex-1 ${
-                                                        editingContact === contact.id && editingSection === 'lead' 
+                                                        editingContact === contact.id && editingSection === 'lead' && isEditable
                                                           ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
                                                           : ''
                                                       }`}
                                                       onClick={() => {
-                                                        if (editingContact === contact.id && editingSection === 'lead') {
+                                                        if (editingContact === contact.id && editingSection === 'lead' && isEditable) {
                                                           startEditing(contact.id, field, value || '');
                                                         }
                                                       }}
@@ -298,45 +299,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                             </div>
                                           </div>
                                         ))}
-
-                                        <div className="pt-4">
-                                          <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company Join Date: </span>
-                                          <div className="flex items-center space-x-2 flex-1">
-                                            {editingContact === contact.id && editingSection === 'lead' && editingField === 'company_join_date' ? (
-                                              <div className="flex items-center space-x-2 w-full">
-                                                <input
-                                                  type="text"
-                                                  value={editValue}
-                                                  onChange={(e) => setEditValue(e.target.value)}
-                                                  placeholder="e.g., Jan 2020"
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                  autoFocus
-                                                />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
-                                                  <Save className="w-4 h-4" />
-                                                </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
-                                                  <X className="w-4 h-4" />
-                                                </button>
-                                              </div>
-                                            ) : (
-                                              <span 
-                                                className={`text-sm text-gray-900 flex-1 ${
-                                                  editingContact === contact.id && editingSection === 'lead' 
-                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
-                                                    : ''
-                                                }`}
-                                                onClick={() => {
-                                                  if (editingContact === contact.id && editingSection === 'lead') {
-                                                    startEditing(contact.id, 'company_join_date', formatJoinDate(contact.current_company_join_month, contact.current_company_join_year));
-                                                  }
-                                                }}
-                                              >
-                                                {formatJoinDate(contact.current_company_join_month, contact.current_company_join_year)}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
 
                                         <div className="pt-4">
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">LinkedIn Profile URL: </span>
@@ -357,11 +319,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                       </div>
 
                                       {/* Company Information */}
-                                      <div className={`min-w-[300px] space-y-2 ${
-                                        editingContact === contact.id && editingSection === 'company' 
-                                          ? 'border-2 border-green-500 rounded-lg p-4 bg-green-50' 
-                                          : ''
-                                      }`}>
+                                      <div className="min-w-[300px] space-y-2">
                                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                           <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                                             <Building className="w-5 h-5 mr-2 text-green-500" />
@@ -385,18 +343,18 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                             <span className="text-sm font-medium text-gray-700 min-w-[160px]">{label}: </span>
                                             <div className="flex items-center space-x-2 flex-1">
                                               {editingContact === contact.id && editingSection === 'company' && editingField === field ? (
-                                                <div className="flex items-center space-x-2 w-full">
+                                                <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                   <input
                                                     type="text"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                     autoFocus
                                                   />
-                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                     <Save className="w-4 h-4" />
                                                   </button>
-                                                  <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                     <X className="w-4 h-4" />
                                                   </button>
                                                 </div>
@@ -407,7 +365,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                       href={`https://${value}`}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
-                                                      className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer"
+                                                      className={`text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer ${
+                                                        editingContact === contact.id && editingSection === 'company'
+                                                          ? 'hover:bg-gray-100 px-2 py-1 rounded' 
+                                                          : ''
+                                                      }`}
                                                       onClick={(e) => {
                                                         if (editingContact === contact.id && editingSection === 'company') {
                                                           e.preventDefault();
@@ -443,30 +405,33 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company LinkedIn URL: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'company' && editingField === 'company_linkedin_url' ? (
-                                              <div className="flex items-center space-x-2 w-full">
+                                              <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                 <input
-                                                  type="url"
+                                                  type="text"
                                                   value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
-                                                  placeholder="https://linkedin.com/company/..."
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                   autoFocus
                                                 />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                   <Save className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                   <X className="w-4 h-4" />
                                                 </button>
                                               </div>
                                             ) : (
-                                              <div className="flex items-center w-full">
+                                              <>
                                                 {contact.company_linkedin_url ? (
                                                   <a
                                                     href={contact.company_linkedin_url}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
+                                                    className={`inline-flex items-center text-blue-600 hover:text-blue-800 text-sm ${
+                                                      editingContact === contact.id && editingSection === 'company'
+                                                        ? 'hover:bg-gray-100 px-2 py-1 rounded cursor-pointer' 
+                                                        : ''
+                                                    }`}
                                                     onClick={(e) => {
                                                       if (editingContact === contact.id && editingSection === 'company') {
                                                         e.preventDefault();
@@ -479,8 +444,8 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                   </a>
                                                 ) : (
                                                   <span 
-                                                    className={`text-sm text-gray-900 flex-1 ${
-                                                      editingContact === contact.id && editingSection === 'company' 
+                                                    className={`text-sm text-gray-900 ${
+                                                      editingContact === contact.id && editingSection === 'company'
                                                         ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
                                                         : ''
                                                     }`}
@@ -493,18 +458,14 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                     Not provided
                                                   </span>
                                                 )}
-                                              </div>
+                                              </>
                                             )}
                                           </div>
                                         </div>
                                       </div>
 
                                       {/* Daily Digest Information */}
-                                      <div className={`min-w-[400px] space-y-1.5 ${
-                                        editingContact === contact.id && editingSection === 'digest' 
-                                          ? 'border-2 border-purple-500 rounded-lg p-4 bg-purple-50' 
-                                          : ''
-                                      }`}>
+                                      <div className="min-w-[400px] space-y-1.5">
                                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                           <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                                             <FileText className="w-5 h-5 mr-2 text-purple-500" />
@@ -522,18 +483,18 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Summary: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'digest' && editingField === 'last_interaction_summary' ? (
-                                              <div className="flex items-center space-x-2 w-full">
+                                              <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                 <input
                                                   type="text"
                                                   value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                   autoFocus
                                                 />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                   <Save className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                   <X className="w-4 h-4" />
                                                 </button>
                                               </div>
@@ -560,18 +521,18 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Platform: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'digest' && editingField === 'last_interaction_platform' ? (
-                                              <div className="flex items-center space-x-2 w-full">
+                                              <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                 <input
                                                   type="text"
                                                   value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                   autoFocus
                                                 />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                   <Save className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                   <X className="w-4 h-4" />
                                                 </button>
                                               </div>
@@ -598,18 +559,18 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Date: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'digest' && editingField === 'last_interaction_date' ? (
-                                              <div className="flex items-center space-x-2 w-full">
+                                              <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                 <input
                                                   type="datetime-local"
                                                   value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                   autoFocus
                                                 />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                   <Save className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                   <X className="w-4 h-4" />
                                                 </button>
                                               </div>
@@ -622,7 +583,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                 }`}
                                                 onClick={() => {
                                                   if (editingContact === contact.id && editingSection === 'digest') {
-                                                    // Convert date to datetime-local format for editing
+                                                    // Convert date to datetime-local format for input
                                                     const dateValue = contact.last_interaction_date 
                                                       ? new Date(contact.last_interaction_date).toISOString().slice(0, 16)
                                                       : '';
@@ -646,18 +607,18 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                             <span className="text-sm font-medium text-gray-700 min-w-[180px]">{label}: </span>
                                             <div className="flex items-center space-x-2 flex-1">
                                               {editingContact === contact.id && editingSection === 'digest' && editingField === field ? (
-                                                <div className="flex items-center space-x-2 w-full">
+                                                <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                   <input
                                                     type="text"
                                                     value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
-                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                     autoFocus
                                                   />
-                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                     <Save className="w-4 h-4" />
                                                   </button>
-                                                  <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                     <X className="w-4 h-4" />
                                                   </button>
                                                 </div>
@@ -686,18 +647,18 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Value Add: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'digest' && editingField === 'potential_value_add_headline' ? (
-                                              <div className="flex items-center space-x-2 w-full">
+                                              <div className="flex items-center space-x-2 w-full p-2 border-2 border-black bg-black bg-opacity-70 rounded">
                                                 <input
                                                   type="text"
                                                   value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                                                   autoFocus
                                                 />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800 bg-white rounded p-1">
                                                   <Save className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800 bg-white rounded p-1">
                                                   <X className="w-4 h-4" />
                                                 </button>
                                               </div>
@@ -708,7 +669,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                     href={contact.potential_value_add_link}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-blue-600 hover:text-blue-800 text-sm underline flex-1 cursor-pointer"
+                                                    className={`text-blue-600 hover:text-blue-800 text-sm underline flex-1 cursor-pointer ${
+                                                      editingContact === contact.id && editingSection === 'digest'
+                                                        ? 'hover:bg-gray-100 px-2 py-1 rounded' 
+                                                        : ''
+                                                    }`}
                                                     onClick={(e) => {
                                                       if (editingContact === contact.id && editingSection === 'digest') {
                                                         e.preventDefault();
