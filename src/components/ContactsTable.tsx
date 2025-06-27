@@ -213,7 +213,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                   <div className="overflow-x-auto">
                                     <div className="flex space-x-8 min-w-max">
                                       {/* Lead Information */}
-                                      <div className="min-w-[300px] space-y-2">
+                                      <div className={`min-w-[300px] space-y-2 ${
+                                        editingContact === contact.id && editingSection === 'lead' 
+                                          ? 'border-2 border-blue-500 rounded-lg p-4 bg-blue-50' 
+                                          : ''
+                                      }`}>
                                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                           <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                                             <User className="w-5 h-5 mr-2 text-blue-500" />
@@ -233,7 +237,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           { field: 'last_name', label: 'Last Name', value: contact.last_name },
                                           { field: 'job_title', label: 'Job Title', value: contact.job_title },
                                           { field: 'work_email', label: 'Work Email', value: contact.work_email, isClickable: true },
-                                          { field: 'company_join_date', label: 'Company Join Date', value: formatJoinDate(contact.current_company_join_month, contact.current_company_join_year) },
                                           { field: 'lead_country', label: 'Country', value: contact.lead_country },
                                           { field: 'connection_count', label: 'LinkedIn Connections', value: contact.connection_count?.toLocaleString() },
                                           { field: 'followers_count', label: 'LinkedIn Followers', value: contact.followers_count?.toLocaleString() }
@@ -266,7 +269,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                       rel="noopener noreferrer"
                                                       className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer"
                                                       onClick={(e) => {
-                                                        if (editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date') {
+                                                        if (editingContact === contact.id && editingSection === 'lead') {
                                                           e.preventDefault();
                                                           startEditing(contact.id, field, value || '');
                                                         }
@@ -277,12 +280,12 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                   ) : (
                                                     <span 
                                                       className={`text-sm text-gray-900 flex-1 ${
-                                                        editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date' 
+                                                        editingContact === contact.id && editingSection === 'lead' 
                                                           ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
                                                           : ''
                                                       }`}
                                                       onClick={() => {
-                                                        if (editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date') {
+                                                        if (editingContact === contact.id && editingSection === 'lead') {
                                                           startEditing(contact.id, field, value || '');
                                                         }
                                                       }}
@@ -295,6 +298,45 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                             </div>
                                           </div>
                                         ))}
+
+                                        <div className="pt-4">
+                                          <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company Join Date: </span>
+                                          <div className="flex items-center space-x-2 flex-1">
+                                            {editingContact === contact.id && editingSection === 'lead' && editingField === 'company_join_date' ? (
+                                              <div className="flex items-center space-x-2 w-full">
+                                                <input
+                                                  type="text"
+                                                  value={editValue}
+                                                  onChange={(e) => setEditValue(e.target.value)}
+                                                  placeholder="e.g., Jan 2020"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  autoFocus
+                                                />
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <Save className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <X className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span 
+                                                className={`text-sm text-gray-900 flex-1 ${
+                                                  editingContact === contact.id && editingSection === 'lead' 
+                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
+                                                    : ''
+                                                }`}
+                                                onClick={() => {
+                                                  if (editingContact === contact.id && editingSection === 'lead') {
+                                                    startEditing(contact.id, 'company_join_date', formatJoinDate(contact.current_company_join_month, contact.current_company_join_year));
+                                                  }
+                                                }}
+                                              >
+                                                {formatJoinDate(contact.current_company_join_month, contact.current_company_join_year)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
 
                                         <div className="pt-4">
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">LinkedIn Profile URL: </span>
@@ -315,7 +357,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                       </div>
 
                                       {/* Company Information */}
-                                      <div className="min-w-[300px] space-y-2">
+                                      <div className={`min-w-[300px] space-y-2 ${
+                                        editingContact === contact.id && editingSection === 'company' 
+                                          ? 'border-2 border-green-500 rounded-lg p-4 bg-green-50' 
+                                          : ''
+                                      }`}>
                                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                           <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                                             <Building className="w-5 h-5 mr-2 text-green-500" />
@@ -393,48 +439,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </div>
                                         ))}
 
-                                        {/* Company Join Date - Now Editable */}
-                                        <div className="flex items-center py-1.5">
-                                          <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company Join Date: </span>
-                                          <div className="flex items-center space-x-2 flex-1">
-                                            {editingContact === contact.id && editingSection === 'company' && editingField === 'company_join_date' ? (
-                                              <div className="flex items-center space-x-2 w-full">
-                                                <input
-                                                  type="text"
-                                                  value={editValue}
-                                                  onChange={(e) => setEditValue(e.target.value)}
-                                                  placeholder="e.g., Mar 2020 or 3/2020"
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                  autoFocus
-                                                />
-                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
-                                                  <Save className="w-4 h-4" />
-                                                </button>
-                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
-                                                  <X className="w-4 h-4" />
-                                                </button>
-                                              </div>
-                                            ) : (
-                                              <span 
-                                                className={`text-sm text-gray-900 flex-1 ${
-                                                  editingContact === contact.id && editingSection === 'company' 
-                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
-                                                    : ''
-                                                }`}
-                                                onClick={() => {
-                                                  if (editingContact === contact.id && editingSection === 'company') {
-                                                    const currentValue = formatJoinDate(contact.current_company_join_month, contact.current_company_join_year);
-                                                    startEditing(contact.id, 'company_join_date', currentValue !== 'Not provided' ? currentValue : '');
-                                                  }
-                                                }}
-                                              >
-                                                {formatJoinDate(contact.current_company_join_month, contact.current_company_join_year)}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {/* Company LinkedIn URL - Now Editable */}
                                         <div className="pt-4">
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company LinkedIn URL: </span>
                                           <div className="flex items-center space-x-2 flex-1">
@@ -475,7 +479,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                   </a>
                                                 ) : (
                                                   <span 
-                                                    className={`text-sm text-gray-900 ${
+                                                    className={`text-sm text-gray-900 flex-1 ${
                                                       editingContact === contact.id && editingSection === 'company' 
                                                         ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
                                                         : ''
@@ -496,7 +500,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                       </div>
 
                                       {/* Daily Digest Information */}
-                                      <div className="min-w-[400px] space-y-1.5">
+                                      <div className={`min-w-[400px] space-y-1.5 ${
+                                        editingContact === contact.id && editingSection === 'digest' 
+                                          ? 'border-2 border-purple-500 rounded-lg p-4 bg-purple-50' 
+                                          : ''
+                                      }`}>
                                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
                                           <h4 className="text-lg font-semibold text-gray-900 flex items-center">
                                             <FileText className="w-5 h-5 mr-2 text-purple-500" />
@@ -510,7 +518,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </button>
                                         </div>
 
-                                        {/* Last Interaction Summary - Now Editable */}
                                         <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Summary: </span>
                                           <div className="flex items-center space-x-2 flex-1">
@@ -549,7 +556,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </div>
                                         </div>
 
-                                        {/* Last Interaction Platform - Now Editable */}
                                         <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Platform: </span>
                                           <div className="flex items-center space-x-2 flex-1">
@@ -588,7 +594,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </div>
                                         </div>
 
-                                        {/* Last Interaction Date - Now Editable */}
                                         <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Date: </span>
                                           <div className="flex items-center space-x-2 flex-1">
@@ -617,7 +622,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                 }`}
                                                 onClick={() => {
                                                   if (editingContact === contact.id && editingSection === 'digest') {
-                                                    // Convert the date to the format expected by datetime-local input
+                                                    // Convert date to datetime-local format for editing
                                                     const dateValue = contact.last_interaction_date 
                                                       ? new Date(contact.last_interaction_date).toISOString().slice(0, 16)
                                                       : '';

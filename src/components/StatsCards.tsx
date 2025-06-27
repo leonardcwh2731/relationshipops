@@ -14,32 +14,32 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
       name: 'Account Groups',
       value: totalGroups.toLocaleString(),
       icon: Building,
-      color: 'bg-green-500',
-      bgColor: 'bg-white',
+      color: 'bg-black',
+      bgColor: 'bg-black',
       textColor: 'text-white'
     },
     {
       name: 'Total Contacts',
       value: totalContacts.toLocaleString(),
       icon: Users,
-      color: 'bg-blue-500',
-      bgColor: 'bg-white',
+      color: 'bg-black',
+      bgColor: 'bg-black',
       textColor: 'text-white'
     },
     {
       name: 'Leads Above 80',
       value: leadsAbove80.toString(),
       icon: TrendingUp,
-      color: 'bg-yellow-500',
-      bgColor: 'bg-white',
+      color: 'bg-black',
+      bgColor: 'bg-black',
       textColor: 'text-white'
     },
     {
       name: 'Ready Contacts',
       value: readyToSendContacts.toString(),
       icon: CheckCircle,
-      color: 'bg-purple-500',
-      bgColor: 'bg-white',
+      color: 'bg-black',
+      bgColor: 'bg-black',
       textColor: 'text-white'
     }
   ];
