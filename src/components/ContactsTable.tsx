@@ -59,22 +59,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
   const saveEdit = async () => {
     if (editingContact && editingField) {
       try {
-        let valueToSave = editValue;
-        
-        // Handle special field conversions
-        if (editingField === 'current_company_join_month' || editingField === 'current_company_join_year') {
-          // Convert from YYYY-MM format to separate month/year
-          if (editValue && editValue.includes('-')) {
-            const [year, month] = editValue.split('-');
-            if (editingField === 'current_company_join_month') {
-              valueToSave = parseInt(month, 10);
-            } else {
-              valueToSave = parseInt(year, 10);
-            }
-          }
-        }
-        
-        await onUpdateContact(editingContact, editingField, valueToSave);
+        await onUpdateContact(editingContact, editingField, editValue);
         setEditingField(null);
         setEditValue('');
       } catch (error) {
@@ -104,18 +89,6 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
     if (!month || !year) return 'Not provided';
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${monthNames[month - 1]} ${year}`;
-  };
-
-  const formatDateForInput = (dateString?: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toISOString().slice(0, 16); // Format for datetime-local input
-  };
-
-  const formatJoinDateForInput = (month?: number, year?: number) => {
-    if (!month || !year) return '';
-    const monthStr = month.toString().padStart(2, '0');
-    return `${year}-${monthStr}`;
   };
 
   const accountEmails = Object.keys(groupedContacts).sort(); // Show all account emails
@@ -260,19 +233,19 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           { field: 'last_name', label: 'Last Name', value: contact.last_name },
                                           { field: 'job_title', label: 'Job Title', value: contact.job_title },
                                           { field: 'work_email', label: 'Work Email', value: contact.work_email, isClickable: true },
-                                          { field: 'company_join_date', label: 'Company Join Date', value: formatJoinDate(contact.current_company_join_month, contact.current_company_join_year), isEditable: true },
+                                          { field: 'company_join_date', label: 'Company Join Date', value: formatJoinDate(contact.current_company_join_month, contact.current_company_join_year) },
                                           { field: 'lead_country', label: 'Country', value: contact.lead_country },
                                           { field: 'connection_count', label: 'LinkedIn Connections', value: contact.connection_count?.toLocaleString() },
                                           { field: 'followers_count', label: 'LinkedIn Followers', value: contact.followers_count?.toLocaleString() }
-                                        ].map(({ field, label, value, isClickable, isEditable }) => (
+                                        ].map(({ field, label, value, isClickable }) => (
                                           <div key={field} className="flex items-center py-1.5">
                                             <span className="text-sm font-medium text-gray-700 min-w-[160px]">{label}: </span>
                                             <div className="flex items-center space-x-2 flex-1">
                                               {editingContact === contact.id && editingSection === 'lead' && editingField === field ? (
                                                 <div className="flex items-center space-x-2 w-full">
                                                   <input
-                                                    type={field === 'company_join_date' ? 'month' : field.includes('count') ? 'number' : 'text'}
-                                                    value={field === 'company_join_date' ? formatJoinDateForInput(contact.current_company_join_month, contact.current_company_join_year) : editValue}
+                                                    type={field.includes('count') ? 'number' : 'text'}
+                                                    value={editValue}
                                                     onChange={(e) => setEditValue(e.target.value)}
                                                     className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                                                     autoFocus
@@ -291,9 +264,13 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                       href={field === 'work_email' ? `mailto:${value}` : value}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
-                                                      className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer"
+                                                      className={`text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                        editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date' 
+                                                          ? 'border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                          : ''
+                                                      }`}
                                                       onClick={(e) => {
-                                                        if (editingContact === contact.id && editingSection === 'lead' && (field !== 'company_join_date' || isEditable)) {
+                                                        if (editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date') {
                                                           e.preventDefault();
                                                           startEditing(contact.id, field, value || '');
                                                         }
@@ -303,18 +280,14 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                     </a>
                                                   ) : (
                                                     <span 
-                                                      className={`text-sm text-gray-900 flex-1 ${
-                                                        editingContact === contact.id && editingSection === 'lead' && (field !== 'company_join_date' || isEditable)
-                                                          ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                      className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                        editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date' 
+                                                          ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                           : ''
                                                       }`}
                                                       onClick={() => {
-                                                        if (editingContact === contact.id && editingSection === 'lead' && (field !== 'company_join_date' || isEditable)) {
-                                                          if (field === 'company_join_date') {
-                                                            startEditing(contact.id, 'current_company_join_month', formatJoinDateForInput(contact.current_company_join_month, contact.current_company_join_year));
-                                                          } else {
-                                                            startEditing(contact.id, field, value || '');
-                                                          }
+                                                        if (editingContact === contact.id && editingSection === 'lead' && field !== 'company_join_date') {
+                                                          startEditing(contact.id, field, value || '');
                                                         }
                                                       }}
                                                     >
@@ -327,7 +300,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </div>
                                         ))}
 
-                                        <div className="pt-4">
+                                        <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">LinkedIn Profile URL: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'lead' && editingField === 'linkedin_profile_url' ? (
@@ -349,29 +322,30 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                             ) : (
                                               <div className="flex items-center w-full">
                                                 {contact.linkedin_profile_url ? (
-                                                  editingContact === contact.id && editingSection === 'lead' ? (
-                                                    <span
-                                                      className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30"
-                                                      onClick={() => startEditing(contact.id, 'linkedin_profile_url', contact.linkedin_profile_url || '')}
-                                                    >
-                                                      {contact.linkedin_profile_url}
-                                                    </span>
-                                                  ) : (
-                                                    <a
-                                                      href={contact.linkedin_profile_url}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
-                                                    >
-                                                      <ExternalLink className="w-4 h-4 mr-1" />
-                                                      View Profile
-                                                    </a>
-                                                  )
+                                                  <a
+                                                    href={contact.linkedin_profile_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className={`inline-flex items-center text-blue-600 hover:text-blue-800 text-sm whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                      editingContact === contact.id && editingSection === 'lead' 
+                                                        ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                        : ''
+                                                    }`}
+                                                    onClick={(e) => {
+                                                      if (editingContact === contact.id && editingSection === 'lead') {
+                                                        e.preventDefault();
+                                                        startEditing(contact.id, 'linkedin_profile_url', contact.linkedin_profile_url || '');
+                                                      }
+                                                    }}
+                                                  >
+                                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                                    View Profile
+                                                  </a>
                                                 ) : (
                                                   <span 
-                                                    className={`text-sm text-gray-900 flex-1 ${
+                                                    className={`text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                       editingContact === contact.id && editingSection === 'lead' 
-                                                        ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                        ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                         : ''
                                                     }`}
                                                     onClick={() => {
@@ -436,7 +410,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                       href={`https://${value}`}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
-                                                      className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer"
+                                                      className={`text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                        editingContact === contact.id && editingSection === 'company' 
+                                                          ? 'border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                          : ''
+                                                      }`}
                                                       onClick={(e) => {
                                                         if (editingContact === contact.id && editingSection === 'company') {
                                                           e.preventDefault();
@@ -448,9 +426,9 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                     </a>
                                                   ) : (
                                                     <span 
-                                                      className={`text-sm text-gray-900 flex-1 ${
+                                                      className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                         editingContact === contact.id && editingSection === 'company' 
-                                                          ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                          ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                           : ''
                                                       }`}
                                                       onClick={() => {
@@ -468,7 +446,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </div>
                                         ))}
 
-                                        <div className="pt-4">
+                                        <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company LinkedIn URL: </span>
                                           <div className="flex items-center space-x-2 flex-1">
                                             {editingContact === contact.id && editingSection === 'company' && editingField === 'company_linkedin_url' ? (
@@ -490,29 +468,30 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                             ) : (
                                               <div className="flex items-center w-full">
                                                 {contact.company_linkedin_url ? (
-                                                  editingContact === contact.id && editingSection === 'company' ? (
-                                                    <span
-                                                      className="text-sm text-blue-600 hover:text-blue-800 flex-1 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30"
-                                                      onClick={() => startEditing(contact.id, 'company_linkedin_url', contact.company_linkedin_url || '')}
-                                                    >
-                                                      {contact.company_linkedin_url}
-                                                    </span>
-                                                  ) : (
-                                                    <a
-                                                      href={contact.company_linkedin_url}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
-                                                    >
-                                                      <ExternalLink className="w-4 h-4 mr-1" />
-                                                      View Company
-                                                    </a>
-                                                  )
+                                                  <a
+                                                    href={contact.company_linkedin_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className={`inline-flex items-center text-blue-600 hover:text-blue-800 text-sm whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                      editingContact === contact.id && editingSection === 'company' 
+                                                        ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                        : ''
+                                                    }`}
+                                                    onClick={(e) => {
+                                                      if (editingContact === contact.id && editingSection === 'company') {
+                                                        e.preventDefault();
+                                                        startEditing(contact.id, 'company_linkedin_url', contact.company_linkedin_url || '');
+                                                      }
+                                                    }}
+                                                  >
+                                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                                    View Company
+                                                  </a>
                                                 ) : (
                                                   <span 
-                                                    className={`text-sm text-gray-900 flex-1 ${
+                                                    className={`text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                       editingContact === contact.id && editingSection === 'company' 
-                                                        ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                        ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                         : ''
                                                     }`}
                                                     onClick={() => {
@@ -566,9 +545,9 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                               </div>
                                             ) : (
                                               <span 
-                                                className={`text-sm text-gray-900 flex-1 ${
+                                                className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                   editingContact === contact.id && editingSection === 'digest' 
-                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                    ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                     : ''
                                                 }`}
                                                 onClick={() => {
@@ -585,16 +564,80 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
 
                                         <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Platform: </span>
-                                          <span className="text-sm text-gray-900 flex-1">
-                                            {contact.last_interaction_platform || 'Not provided'}
-                                          </span>
+                                          <div className="flex items-center space-x-2 flex-1">
+                                            {editingContact === contact.id && editingSection === 'digest' && editingField === 'last_interaction_platform' ? (
+                                              <div className="flex items-center space-x-2 w-full">
+                                                <input
+                                                  type="text"
+                                                  value={editValue}
+                                                  onChange={(e) => setEditValue(e.target.value)}
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                                  autoFocus
+                                                />
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <Save className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <X className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span 
+                                                className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                  editingContact === contact.id && editingSection === 'digest' 
+                                                    ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                    : ''
+                                                }`}
+                                                onClick={() => {
+                                                  if (editingContact === contact.id && editingSection === 'digest') {
+                                                    startEditing(contact.id, 'last_interaction_platform', contact.last_interaction_platform || '');
+                                                  }
+                                                }}
+                                              >
+                                                {contact.last_interaction_platform || 'Not provided'}
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
 
                                         <div className="flex items-center py-1.5">
                                           <span className="text-sm font-medium text-gray-700 min-w-[180px]">Last Interaction Date: </span>
-                                          <span className="text-sm text-gray-900 flex-1">
-                                            {formatDate(contact.last_interaction_date)}
-                                          </span>
+                                          <div className="flex items-center space-x-2 flex-1">
+                                            {editingContact === contact.id && editingSection === 'digest' && editingField === 'last_interaction_date' ? (
+                                              <div className="flex items-center space-x-2 w-full">
+                                                <input
+                                                  type="datetime-local"
+                                                  value={editValue}
+                                                  onChange={(e) => setEditValue(e.target.value)}
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                                  autoFocus
+                                                />
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <Save className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <X className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span 
+                                                className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                  editingContact === contact.id && editingSection === 'digest' 
+                                                    ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                    : ''
+                                                }`}
+                                                onClick={() => {
+                                                  if (editingContact === contact.id && editingSection === 'digest') {
+                                                    const dateValue = contact.last_interaction_date ? 
+                                                      new Date(contact.last_interaction_date).toISOString().slice(0, 16) : '';
+                                                    startEditing(contact.id, 'last_interaction_date', dateValue);
+                                                  }
+                                                }}
+                                              >
+                                                {formatDate(contact.last_interaction_date)}
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
 
                                         {/* Talking Points and Value Add */}
@@ -624,9 +667,9 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                 </div>
                                               ) : (
                                                 <span 
-                                                  className={`text-sm text-gray-900 flex-1 ${
+                                                  className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                     editingContact === contact.id && editingSection === 'digest' 
-                                                      ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                      ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                       : ''
                                                   }`}
                                                   onClick={() => {
@@ -669,7 +712,11 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                     href={contact.potential_value_add_link}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-blue-600 hover:text-blue-800 text-sm underline flex-1 cursor-pointer"
+                                                    className={`text-blue-600 hover:text-blue-800 text-sm underline flex-1 cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis ${
+                                                      editingContact === contact.id && editingSection === 'digest' 
+                                                        ? 'border border-black border-opacity-30 px-2 py-1 rounded' 
+                                                        : ''
+                                                    }`}
                                                     onClick={(e) => {
                                                       if (editingContact === contact.id && editingSection === 'digest') {
                                                         e.preventDefault();
@@ -681,9 +728,9 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                   </a>
                                                 ) : (
                                                   <span 
-                                                    className={`text-sm text-gray-900 flex-1 ${
+                                                    className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                       editingContact === contact.id && editingSection === 'digest' 
-                                                        ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                        ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                         : ''
                                                     }`}
                                                     onClick={() => {
@@ -709,7 +756,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                                 <select
                                                   value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
-                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                                                   autoFocus
                                                 >
                                                   <option value="No">No</option>
@@ -724,13 +771,13 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                               </div>
                                             ) : (
                                               <span 
-                                                className={`text-sm px-2 py-1 rounded-full text-xs font-medium ${
+                                                className={`text-sm px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis ${
                                                   contact.sent_to_client === 'Yes' 
                                                     ? 'bg-green-100 text-green-600' 
                                                     : 'bg-red-100 text-red-600'
                                                 } ${
                                                   editingContact === contact.id && editingSection === 'digest' 
-                                                    ? 'cursor-pointer hover:bg-gray-100 border border-black border-opacity-30' 
+                                                    ? 'cursor-pointer border border-black border-opacity-30' 
                                                     : ''
                                                 }`}
                                                 onClick={() => {
@@ -753,7 +800,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                               <div className="flex items-center space-x-2 w-full">
                                                 <input
                                                   type="datetime-local"
-                                                  value={formatDateForInput(editValue)}
+                                                  value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
                                                   className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                                                   autoFocus
@@ -767,14 +814,16 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                               </div>
                                             ) : (
                                               <span 
-                                                className={`text-sm text-gray-900 flex-1 ${
+                                                className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                   editingContact === contact.id && editingSection === 'digest' 
-                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                    ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                     : ''
                                                 }`}
                                                 onClick={() => {
                                                   if (editingContact === contact.id && editingSection === 'digest') {
-                                                    startEditing(contact.id, 'exact_sent_date', contact.exact_sent_date || '');
+                                                    const dateValue = contact.exact_sent_date ? 
+                                                      new Date(contact.exact_sent_date).toISOString().slice(0, 16) : '';
+                                                    startEditing(contact.id, 'exact_sent_date', dateValue);
                                                   }
                                                 }}
                                               >
@@ -792,7 +841,7 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                               <div className="flex items-center space-x-2 w-full">
                                                 <input
                                                   type="datetime-local"
-                                                  value={formatDateForInput(editValue)}
+                                                  value={editValue}
                                                   onChange={(e) => setEditValue(e.target.value)}
                                                   className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                                                   autoFocus
@@ -806,14 +855,16 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                               </div>
                                             ) : (
                                               <span 
-                                                className={`text-sm text-gray-900 flex-1 ${
+                                                className={`text-sm text-gray-900 flex-1 whitespace-nowrap overflow-hidden text-ellipsis ${
                                                   editingContact === contact.id && editingSection === 'digest' 
-                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-black border-opacity-30' 
+                                                    ? 'cursor-pointer border border-black border-opacity-30 px-2 py-1 rounded' 
                                                     : ''
                                                 }`}
                                                 onClick={() => {
                                                   if (editingContact === contact.id && editingSection === 'digest') {
-                                                    startEditing(contact.id, 'created_at', contact.created_at || '');
+                                                    const dateValue = contact.created_at ? 
+                                                      new Date(contact.created_at).toISOString().slice(0, 16) : '';
+                                                    startEditing(contact.id, 'created_at', dateValue);
                                                   }
                                                 }}
                                               >
