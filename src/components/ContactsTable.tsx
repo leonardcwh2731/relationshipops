@@ -393,21 +393,105 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
                                           </div>
                                         ))}
 
+                                        {/* Company Join Date - Now Editable */}
+                                        <div className="flex items-center py-1.5">
+                                          <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company Join Date: </span>
+                                          <div className="flex items-center space-x-2 flex-1">
+                                            {editingContact === contact.id && editingSection === 'company' && editingField === 'company_join_date' ? (
+                                              <div className="flex items-center space-x-2 w-full">
+                                                <input
+                                                  type="text"
+                                                  value={editValue}
+                                                  onChange={(e) => setEditValue(e.target.value)}
+                                                  placeholder="e.g., Mar 2020 or 3/2020"
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  autoFocus
+                                                />
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <Save className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <X className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span 
+                                                className={`text-sm text-gray-900 flex-1 ${
+                                                  editingContact === contact.id && editingSection === 'company' 
+                                                    ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
+                                                    : ''
+                                                }`}
+                                                onClick={() => {
+                                                  if (editingContact === contact.id && editingSection === 'company') {
+                                                    const currentValue = formatJoinDate(contact.current_company_join_month, contact.current_company_join_year);
+                                                    startEditing(contact.id, 'company_join_date', currentValue !== 'Not provided' ? currentValue : '');
+                                                  }
+                                                }}
+                                              >
+                                                {formatJoinDate(contact.current_company_join_month, contact.current_company_join_year)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {/* Company LinkedIn URL - Now Editable */}
                                         <div className="pt-4">
                                           <span className="text-sm font-medium text-gray-700 min-w-[160px]">Company LinkedIn URL: </span>
-                                          {contact.company_linkedin_url ? (
-                                            <a
-                                              href={contact.company_linkedin_url}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
-                                            >
-                                              <ExternalLink className="w-4 h-4 mr-1" />
-                                              View Company
-                                            </a>
-                                          ) : (
-                                            <span className="text-sm text-gray-900">Not provided</span>
-                                          )}
+                                          <div className="flex items-center space-x-2 flex-1">
+                                            {editingContact === contact.id && editingSection === 'company' && editingField === 'company_linkedin_url' ? (
+                                              <div className="flex items-center space-x-2 w-full">
+                                                <input
+                                                  type="url"
+                                                  value={editValue}
+                                                  onChange={(e) => setEditValue(e.target.value)}
+                                                  placeholder="https://linkedin.com/company/..."
+                                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  autoFocus
+                                                />
+                                                <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                  <Save className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={cancelEditing} className="text-red-600 hover:text-red-800">
+                                                  <X className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-center w-full">
+                                                {contact.company_linkedin_url ? (
+                                                  <a
+                                                    href={contact.company_linkedin_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm cursor-pointer"
+                                                    onClick={(e) => {
+                                                      if (editingContact === contact.id && editingSection === 'company') {
+                                                        e.preventDefault();
+                                                        startEditing(contact.id, 'company_linkedin_url', contact.company_linkedin_url || '');
+                                                      }
+                                                    }}
+                                                  >
+                                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                                    View Company
+                                                  </a>
+                                                ) : (
+                                                  <span 
+                                                    className={`text-sm text-gray-900 ${
+                                                      editingContact === contact.id && editingSection === 'company' 
+                                                        ? 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded' 
+                                                        : ''
+                                                    }`}
+                                                    onClick={() => {
+                                                      if (editingContact === contact.id && editingSection === 'company') {
+                                                        startEditing(contact.id, 'company_linkedin_url', contact.company_linkedin_url || '');
+                                                      }
+                                                    }}
+                                                  >
+                                                    Not provided
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
 
