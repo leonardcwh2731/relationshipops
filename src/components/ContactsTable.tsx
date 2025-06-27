@@ -103,12 +103,9 @@ export function ContactsTable({ groupedContacts, onUpdateContact, loading }: Con
       return 'bg-blue-50 border border-blue-300 px-2 py-1 rounded';
     }
     
+    // Only show the black transparent border when in edit mode for that section
     if (editingContact === contactId && editingSection === section && isFieldEditable(field)) {
-      return 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border border-dashed border-gray-400';
-    }
-    
-    if (isFieldEditable(field)) {
-      return 'border border-dashed border-gray-300 px-2 py-1 rounded hover:border-gray-400 transition-colors';
+      return 'cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border-2 border-dashed border-black border-opacity-70';
     }
     
     return '';
