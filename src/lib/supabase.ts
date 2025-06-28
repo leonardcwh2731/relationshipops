@@ -3,10 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+let supabase: any;
+
 if (!supabaseUrl || supabaseUrl === '' || !supabaseAnonKey || supabaseAnonKey === '') {
   console.warn('Missing Supabase environment variables');
   // Create a mock client for development
-  export const supabase = {
+  supabase = {
     from: () => ({
       select: () => ({
         eq: () => ({
@@ -19,5 +21,7 @@ if (!supabaseUrl || supabaseUrl === '' || !supabaseAnonKey || supabaseAnonKey ==
     })
   } as any;
 } else {
-  export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
 }
+
+export { supabase };
