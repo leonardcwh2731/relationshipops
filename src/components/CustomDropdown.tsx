@@ -53,18 +53,18 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-4 py-3 text-left bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 flex items-center justify-between"
       >
-        <div className="flex items-center flex-1 pr-2">
+        <div className="flex items-center flex-1 min-w-0 pr-2">
           {selectedOption?.icon && (
             <span className="mr-2 text-gray-500 flex-shrink-0">
               {selectedOption.icon}
             </span>
           )}
-          <span className="text-sm font-medium text-gray-900 truncate">
+          <span className="text-sm font-medium text-gray-900 overflow-hidden text-ellipsis whitespace-nowrap">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
         </div>
         <ChevronDown 
-          className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${
+          className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ml-2 ${
             isOpen ? 'rotate-180' : ''
           }`} 
         />
@@ -79,13 +79,16 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
                 className="w-full px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors duration-150 flex items-center group"
+                title={option.label} // Add tooltip for full email
               >
                 {option.icon && (
                   <span className="mr-3 text-gray-500 group-hover:text-gray-700 transition-colors duration-150 flex-shrink-0">
                     {option.icon}
                   </span>
                 )}
-                <span className="text-sm font-medium truncate">{option.label}</span>
+                <span className="text-sm font-medium block w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                  {option.label}
+                </span>
               </button>
             ))}
           </div>

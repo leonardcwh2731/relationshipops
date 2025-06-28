@@ -512,7 +512,7 @@ function App() {
             onChange={setSelectedAccountEmail}
             options={dropdownOptions}
             placeholder="All Account Emails"
-            className="min-w-[220px]"
+            className="min-w-[280px]"
           />
         </div>
 
