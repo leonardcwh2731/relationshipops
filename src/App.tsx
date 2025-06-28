@@ -148,6 +148,7 @@ function App() {
         job_title: 'Customer Success Manager',
         company_name: 'Smartlead',
         company_domain: 'smartlead.ai',
+        company_linkedin_url: 'https://linkedin.com/company/smartlead',
         company_industry: 'Computer Software',
         company_staff_count_range: '11 - 50',
         work_email: 'raghuram@smartlead.ai',
@@ -174,6 +175,7 @@ function App() {
         job_title: 'VP of Sales',
         company_name: 'TechCorp',
         company_domain: 'techcorp.com',
+        company_linkedin_url: 'https://linkedin.com/company/techcorp',
         company_industry: 'Technology',
         company_staff_count_range: '51 - 200',
         work_email: 'sarah@techcorp.com',
@@ -200,6 +202,7 @@ function App() {
         job_title: 'Director of Marketing',
         company_name: 'GrowthLabs',
         company_domain: 'growthlabs.com',
+        company_linkedin_url: 'https://linkedin.com/company/growthlabs',
         company_industry: 'Marketing',
         company_staff_count_range: '11 - 50',
         work_email: 'michael@growthlabs.com',
@@ -374,7 +377,7 @@ function App() {
   }, []);
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not provided';
+    if (!dateString) return '-';
     try {
       return new Date(dateString).toLocaleString();
     } catch {
@@ -386,6 +389,11 @@ function App() {
     if (score >= 80) return 'bg-green-100 text-green-800';
     if (score >= 60) return 'bg-yellow-100 text-yellow-800';
     return 'bg-red-100 text-red-800';
+  };
+
+  const formatFieldValue = (value: string | number | undefined) => {
+    if (value === null || value === undefined || value === '') return '-';
+    return value.toString();
   };
 
   if (loading && contactGroups.length === 0) {
@@ -478,7 +486,7 @@ function App() {
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Contacts by Account Email</h2>
-            <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds • Paginated to fetch all records</p>
+            <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
           </div>
           
           <div className="divide-y divide-gray-200">
@@ -516,10 +524,10 @@ function App() {
                       <table className="min-w-full">
                         <thead>
                           <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <th className="pb-3">Contact</th>
-                            <th className="pb-3">Job Title</th>
-                            <th className="pb-3">Company</th>
-                            <th className="pb-3">Score</th>
+                            <th className="pb-3 pr-8">Contact</th>
+                            <th className="pb-3 pr-8">Job Title</th>
+                            <th className="pb-3 pr-8">Company</th>
+                            <th className="pb-3 pr-8">Score</th>
                             <th className="pb-3">Actions</th>
                           </tr>
                         </thead>
@@ -528,22 +536,38 @@ function App() {
                             <React.Fragment key={contact.linkedin_profile_url || contact.id}>
                               {/* Contact Summary Row */}
                               <tr className="hover:bg-gray-50">
-                                <td className="py-3">
+                                <td className="py-3 pr-8">
                                   <div className="text-sm font-medium text-gray-900">
                                     {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown'}
                                   </div>
                                   {contact.work_email && (
-                                    <div className="text-sm text-gray-500">{contact.work_email}</div>
+                                    <div className="text-sm text-gray-500">
+                                      <a 
+                                        href={`mailto:${contact.work_email}`}
+                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                      >
+                                        {contact.work_email}
+                                      </a>
+                                    </div>
                                   )}
                                 </td>
-                                <td className="py-3 text-sm text-gray-900">{contact.job_title || 'N/A'}</td>
-                                <td className="py-3">
-                                  <div className="text-sm text-gray-900">{contact.company_name || 'N/A'}</div>
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(contact.job_title)}</td>
+                                <td className="py-3 pr-8">
+                                  <div className="text-sm text-gray-900">{formatFieldValue(contact.company_name)}</div>
                                   {contact.company_domain && (
-                                    <div className="text-sm text-gray-500">{contact.company_domain}</div>
+                                    <div className="text-sm text-gray-500">
+                                      <a 
+                                        href={`https://${contact.company_domain}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                      >
+                                        {contact.company_domain}
+                                      </a>
+                                    </div>
                                   )}
                                 </td>
-                                <td className="py-3">
+                                <td className="py-3 pr-8">
                                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(contact.total_lead_score || contact.lead_score || 0)}`}>
                                     {contact.total_lead_score || contact.lead_score || 0}
                                   </span>
@@ -570,7 +594,6 @@ function App() {
                                             <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                                             Lead Information
                                           </h4>
-                                          <Edit className="w-4 h-4 text-gray-400" />
                                         </div>
                                         <div className="space-y-3">
                                           {[
@@ -601,12 +624,26 @@ function App() {
                                                   </button>
                                                 </div>
                                               ) : (
-                                                <span
-                                                  className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded"
-                                                  onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
-                                                >
-                                                  {value || 'Not provided'}
-                                                </span>
+                                                <div className="flex items-center space-x-2">
+                                                  <span className="text-sm text-gray-900">
+                                                    {field === 'work_email' && value ? (
+                                                      <a 
+                                                        href={`mailto:${value}`}
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      formatFieldValue(value)
+                                                    )}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
                                               )}
                                             </div>
                                           ))}
@@ -633,7 +670,6 @@ function App() {
                                             <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                                             Company Information
                                           </h4>
-                                          <Edit className="w-4 h-4 text-gray-400" />
                                         </div>
                                         <div className="space-y-3">
                                           {[
@@ -660,15 +696,44 @@ function App() {
                                                   </button>
                                                 </div>
                                               ) : (
-                                                <span
-                                                  className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded"
-                                                  onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
-                                                >
-                                                  {value || 'Not provided'}
-                                                </span>
+                                                <div className="flex items-center space-x-2">
+                                                  <span className="text-sm text-gray-900">
+                                                    {field === 'company_domain' && value ? (
+                                                      <a 
+                                                        href={`https://${value}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      formatFieldValue(value)
+                                                    )}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
                                               )}
                                             </div>
                                           ))}
+                                          {contact.company_linkedin_url && (
+                                            <div className="pt-2">
+                                              <a
+                                                href={contact.company_linkedin_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                                              >
+                                                <ExternalLink className="w-4 h-4 mr-1" />
+                                                View Company
+                                              </a>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
 
@@ -679,7 +744,6 @@ function App() {
                                             <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
                                             Daily Digest Information
                                           </h4>
-                                          <Edit className="w-4 h-4 text-gray-400" />
                                         </div>
                                         <div className="space-y-3">
                                           {[
@@ -692,7 +756,7 @@ function App() {
                                             { label: 'Sent to Client', field: 'sent_to_client', value: contact.sent_to_client },
                                             { label: 'Sent Date', field: 'exact_sent_date', value: formatDate(contact.exact_sent_date) }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-start">
+                                            <div key={field} className="flex justify-between items-start group">
                                               <span className="text-sm text-gray-600 mr-2">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -711,12 +775,17 @@ function App() {
                                                   </div>
                                                 </div>
                                               ) : (
-                                                <span
-                                                  className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded text-right flex-1"
-                                                  onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
-                                                >
-                                                  {value || 'Not provided'}
-                                                </span>
+                                                <div className="flex items-start space-x-2 flex-1">
+                                                  <span className="text-sm text-gray-900 text-right flex-1">
+                                                    {formatFieldValue(value)}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
                                               )}
                                             </div>
                                           ))}

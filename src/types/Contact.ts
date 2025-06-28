@@ -6,6 +6,7 @@ export interface Contact {
   last_name?: string;
   company_name?: string;
   company_domain?: string;
+  company_linkedin_url?: string;
   job_title?: string;
   work_email?: string;
   last_interaction_date?: string;
