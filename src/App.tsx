@@ -473,7 +473,13 @@ function App() {
           <select
             value={selectedAccountEmail}
             onChange={(e) => setSelectedAccountEmail(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+            className="px-4 py-2 pr-6 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px] appearance-none bg-white"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+              backgroundPosition: 'right 0.5rem center',
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: '1.5em 1.5em'
+            }}
           >
             <option value="">All Account Emails</option>
             {uniqueAccountEmails.map(email => (
@@ -588,7 +594,7 @@ function App() {
                                   <td colSpan={5} className="py-6 bg-gray-50">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                       {/* Lead Information */}
-                                      <div className="bg-white p-4 rounded-lg">
+                                      <div className="bg-white p-4 rounded-lg group">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
@@ -606,7 +612,7 @@ function App() {
                                             { label: 'LinkedIn Connections', field: 'connection_count', value: contact.connection_count?.toString() },
                                             { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center">
+                                            <div key={field} className="flex justify-between items-center group">
                                               <span className="text-sm text-gray-600">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -664,7 +670,7 @@ function App() {
                                       </div>
 
                                       {/* Company Information */}
-                                      <div className="bg-white p-4 rounded-lg">
+                                      <div className="bg-white p-4 rounded-lg group">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
@@ -678,7 +684,7 @@ function App() {
                                             { label: 'Company Industry', field: 'company_industry', value: contact.company_industry },
                                             { label: 'Company Staff Range', field: 'company_staff_count_range', value: contact.company_staff_count_range }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center">
+                                            <div key={field} className="flex justify-between items-center group">
                                               <span className="text-sm text-gray-600">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -738,7 +744,7 @@ function App() {
                                       </div>
 
                                       {/* Daily Digest Information */}
-                                      <div className="bg-white p-4 rounded-lg">
+                                      <div className="bg-white p-4 rounded-lg group">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
