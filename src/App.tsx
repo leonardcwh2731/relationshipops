@@ -614,8 +614,7 @@ function App() {
                                             { label: 'Work Email', field: 'work_email', value: contact.work_email },
                                             { label: 'Country', field: 'lead_country', value: contact.lead_country },
                                             { label: 'LinkedIn Connections', field: 'connection_count', value: contact.connection_count?.toString() },
-                                            { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() },
-                                            { label: 'Added On', field: 'created_at', value: formatDate(contact.created_at) }
+                                            { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() }
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-center group">
                                               <span className="text-sm text-gray-600">{label}:</span>
@@ -649,7 +648,7 @@ function App() {
                                                     )}
                                                   </span>
                                                   <button
-                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, field === 'created_at' ? contact.created_at || '' : value || '')}
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
                                                     className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                                   >
                                                     <Edit className="w-4 h-4" />
@@ -765,7 +764,8 @@ function App() {
                                             { label: 'Talking Point 2', field: 'talking_point_2', value: contact.talking_point_2 },
                                             { label: 'Talking Point 3', field: 'talking_point_3', value: contact.talking_point_3 },
                                             { label: 'Sent to Client', field: 'sent_to_client', value: contact.sent_to_client },
-                                            { label: 'Sent Date', field: 'exact_sent_date', value: formatDate(contact.exact_sent_date) }
+                                            { label: 'Sent Date', field: 'exact_sent_date', value: formatDate(contact.exact_sent_date) },
+                                            { label: 'Added On', field: 'created_at', value: formatDate(contact.created_at) }
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-start group">
                                               <span className="text-sm text-gray-600 mr-2">{label}:</span>
@@ -791,7 +791,7 @@ function App() {
                                                     {formatFieldValue(value)}
                                                   </span>
                                                   <button
-                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, field.includes('date') ? (field === 'last_interaction_date' ? contact.last_interaction_date || '' : contact.exact_sent_date || '') : value || '')}
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, field.includes('date') ? (field === 'last_interaction_date' ? contact.last_interaction_date || '' : field === 'exact_sent_date' ? contact.exact_sent_date || '' : contact.created_at || '') : value || '')}
                                                     className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
                                                   >
                                                     <Edit className="w-4 h-4" />
