@@ -351,16 +351,25 @@ function App() {
   };
 
   const filteredGroups = contactGroups.filter(group => {
+    // Filter by selected account email first
     if (selectedAccountEmail && group.accountEmail !== selectedAccountEmail) {
       return false;
     }
-    if (searchTerm) {
+    
+    // If there's a search term, filter by contact details
+    if (searchTerm && searchTerm.trim() !== '') {
+      const searchLower = searchTerm.toLowerCase().trim();
       return group.contacts.some(contact => 
-        contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase())
+        (contact.full_name && contact.full_name.toLowerCase().includes(searchLower)) ||
+        (contact.first_name && contact.first_name.toLowerCase().includes(searchLower)) ||
+        (contact.last_name && contact.last_name.toLowerCase().includes(searchLower)) ||
+        (contact.company_name && contact.company_name.toLowerCase().includes(searchLower)) ||
+        (contact.job_title && contact.job_title.toLowerCase().includes(searchLower)) ||
+        (contact.work_email && contact.work_email.toLowerCase().includes(searchLower)) ||
+        (contact.company_domain && contact.company_domain.toLowerCase().includes(searchLower))
       );
     }
+    
     return true;
   });
 
@@ -467,28 +476,27 @@ function App() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search contacts..."
+              placeholder="Search contacts by name, company, job title, email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
             />
           </div>
-          <select
-            value={selectedAccountEmail}
-            onChange={(e) => setSelectedAccountEmail(e.target.value)}
-            className="px-4 py-2 pr-6 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px] appearance-none bg-white"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-              backgroundPosition: 'right 0.5rem center',
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: '1.5em 1.5em'
-            }}
-          >
-            <option value="">All Account Emails</option>
-            {uniqueAccountEmails.map(email => (
-              <option key={email} value={email}>{email}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={selectedAccountEmail}
+              onChange={(e) => setSelectedAccountEmail(e.target.value)}
+              className="px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[220px] appearance-none bg-white shadow-sm cursor-pointer hover:border-gray-400 transition-all duration-200"
+            >
+              <option value="">All Account Emails</option>
+              {uniqueAccountEmails.map(email => (
+                <option key={email} value={email}>{email}</option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            </div>
+          </div>
         </div>
 
         {/* Contact Groups */}
@@ -533,11 +541,11 @@ function App() {
                       <table className="min-w-full">
                         <thead>
                           <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <th className="pb-3 pr-8">Contact</th>
-                            <th className="pb-3 pr-8">Job Title</th>
-                            <th className="pb-3 pr-8">Company</th>
-                            <th className="pb-3 pr-8">Score</th>
-                            <th className="pb-3">Actions</th>
+                            <th className="pb-3 pr-6 w-64">Contact</th>
+                            <th className="pb-3 pr-6 w-48">Job Title</th>
+                            <th className="pb-3 pr-6 w-56">Company</th>
+                            <th className="pb-3 pr-4 w-20">Score</th>
+                            <th className="pb-3 w-32">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -545,7 +553,7 @@ function App() {
                             <React.Fragment key={contact.linkedin_profile_url || contact.id}>
                               {/* Contact Summary Row */}
                               <tr className="hover:bg-gray-50">
-                                <td className="py-3 pr-8">
+                                <td className="py-3 pr-6 w-64">
                                   <div className="text-sm font-medium text-gray-900">
                                     {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown'}
                                   </div>
@@ -560,8 +568,8 @@ function App() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(contact.job_title)}</td>
-                                <td className="py-3 pr-8">
+                                <td className="py-3 pr-6 w-48 text-sm text-gray-900">{formatFieldValue(contact.job_title)}</td>
+                                <td className="py-3 pr-6 w-56">
                                   <div className="text-sm text-gray-900">{formatFieldValue(contact.company_name)}</div>
                                   {contact.company_domain && (
                                     <div className="text-sm text-gray-500">
@@ -576,12 +584,12 @@ function App() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-3 pr-8">
+                                <td className="py-3 pr-4 w-20">
                                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(contact.total_lead_score || contact.lead_score || 0)}`}>
                                     {contact.total_lead_score || contact.lead_score || 0}
                                   </span>
                                 </td>
-                                <td className="py-3">
+                                <td className="py-3 w-32">
                                   <button
                                     onClick={() => toggleContactExpansion(contact.linkedin_profile_url || contact.id || '')}
                                     className="inline-flex items-center text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors duration-200"
