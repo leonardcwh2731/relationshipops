@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink, Mail, User } from 'lucide-react';
 import { Contact } from './types/Contact';
 import { supabase } from './lib/supabase';
+import { CustomDropdown } from './components/CustomDropdown';
 
 interface ContactGroup {
   accountEmail: string;
@@ -375,6 +376,20 @@ function App() {
 
   const uniqueAccountEmails = contactGroups.map(group => group.accountEmail);
 
+  // Create dropdown options with icons
+  const dropdownOptions = [
+    {
+      value: '',
+      label: 'All Account Emails',
+      icon: <User className="w-4 h-4" />
+    },
+    ...uniqueAccountEmails.map(email => ({
+      value: email,
+      label: email,
+      icon: <Mail className="w-4 h-4" />
+    }))
+  ];
+
   useEffect(() => {
     fetchContacts();
 
@@ -482,21 +497,13 @@ function App() {
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
             />
           </div>
-          <div className="relative">
-            <select
-              value={selectedAccountEmail}
-              onChange={(e) => setSelectedAccountEmail(e.target.value)}
-              className="px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[220px] appearance-none bg-white shadow-sm cursor-pointer hover:border-gray-400 transition-all duration-200"
-            >
-              <option value="">All Account Emails</option>
-              {uniqueAccountEmails.map(email => (
-                <option key={email} value={email}>{email}</option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            </div>
-          </div>
+          <CustomDropdown
+            value={selectedAccountEmail}
+            onChange={setSelectedAccountEmail}
+            options={dropdownOptions}
+            placeholder="All Account Emails"
+            className="min-w-[220px]"
+          />
         </div>
 
         {/* Contact Groups */}
