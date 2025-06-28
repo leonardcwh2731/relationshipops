@@ -54,43 +54,81 @@ function App() {
     }
   };
 
-  const fetchContacts = async () => {
+  const fetchAllContactsPaginated = async () => {
     try {
-      console.log('🔄 Fetching contacts with account email grouping...');
+      console.log('🔄 Fetching all contacts with pagination...');
 
-      // First, get the total count
-      const totalCount = await fetchTotalContactCount();
+      const pageSize = 1000; // Supabase default limit
+      let allContacts: any[] = [];
+      let currentPage = 0;
+      let hasMoreData = true;
 
-      // For demo purposes, we'll simulate the joined data since we don't have the actual onboarding_google_tokens table
-      // In a real implementation, this would be a proper JOIN query
-      const { data: contacts, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('*')
-        .order('total_lead_score', { ascending: false })
-        .limit(1000);
+      while (hasMoreData) {
+        const startRange = currentPage * pageSize;
+        const endRange = startRange + pageSize - 1;
 
-      if (error) {
-        console.error('❌ Error fetching contacts:', error);
-        // Use demo data for development but with real total count
-        const demoContacts = generateDemoData();
-        processContactData(demoContacts, totalCount);
-        return;
+        console.log(`📄 Fetching page ${currentPage + 1} (records ${startRange}-${endRange})`);
+
+        const { data: contacts, error } = await supabase
+          .from('icp_contacts_tracking_in_progress')
+          .select('*')
+          .order('total_lead_score', { ascending: false })
+          .range(startRange, endRange);
+
+        if (error) {
+          console.error('❌ Error fetching contacts page:', error);
+          throw error;
+        }
+
+        if (contacts && contacts.length > 0) {
+          allContacts = [...allContacts, ...contacts];
+          console.log(`✅ Fetched ${contacts.length} contacts (total so far: ${allContacts.length})`);
+          
+          // If we got fewer records than the page size, we've reached the end
+          if (contacts.length < pageSize) {
+            hasMoreData = false;
+          } else {
+            currentPage++;
+          }
+        } else {
+          hasMoreData = false;
+        }
       }
 
-      if (contacts && contacts.length > 0) {
+      console.log(`🎉 Completed pagination. Total contacts fetched: ${allContacts.length}`);
+      return allContacts;
+    } catch (err) {
+      console.error('💥 Error in fetchAllContactsPaginated:', err);
+      return [];
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      console.log('🔄 Fetching contacts with pagination...');
+
+      // Try to fetch all contacts using pagination
+      const allContacts = await fetchAllContactsPaginated();
+
+      if (allContacts && allContacts.length > 0) {
         // Add simulated account_email based on client_email or client_email_id
-        const contactsWithAccountEmail = contacts.map(contact => ({
+        const contactsWithAccountEmail = allContacts.map(contact => ({
           ...contact,
           account_email: contact.client_email || contact.client_email_id || 'unknown@domain.com'
         }));
-        processContactData(contactsWithAccountEmail, totalCount);
+        
+        console.log(`✅ Processing ${contactsWithAccountEmail.length} contacts`);
+        processContactData(contactsWithAccountEmail);
       } else {
-        // Use demo data if no contacts found but with real total count
+        // Fallback to demo data if no real data is available
+        console.log('⚠️ No real data found, using demo data');
         const demoContacts = generateDemoData();
+        const totalCount = await fetchTotalContactCount();
         processContactData(demoContacts, totalCount);
       }
     } catch (err) {
       console.error('💥 Error in fetchContacts:', err);
+      // Fallback to demo data
       const demoContacts = generateDemoData();
       const totalCount = await fetchTotalContactCount();
       processContactData(demoContacts, totalCount);
@@ -184,11 +222,13 @@ function App() {
   };
 
   const processContactData = (contacts: any[], totalContactCount: number = 0) => {
+    console.log(`📊 Processing ${contacts.length} contacts for grouping`);
+    
     // Group contacts by account_email
     const groups: { [key: string]: Contact[] } = {};
     
     contacts.forEach(contact => {
-      const accountEmail = contact.account_email || 'unknown@domain.com';
+      const accountEmail = contact.account_email || contact.client_email || contact.client_email_id || 'unknown@domain.com';
       if (!groups[accountEmail]) {
         groups[accountEmail] = [];
       }
@@ -209,12 +249,26 @@ function App() {
       return bMaxScore - aMaxScore;
     });
 
+    console.log(`📈 Created ${contactGroups.length} account groups`);
+    contactGroups.forEach(group => {
+      console.log(`  📧 ${group.accountEmail}: ${group.contacts.length} contacts, ${group.leadsAbove80} leads above 80`);
+    });
+
     setContactGroups(contactGroups);
 
-    // Calculate metrics using real total contact count
+    // Calculate metrics using actual contact data
     const allContacts = contacts;
+    const actualTotalCount = totalContactCount > 0 ? totalContactCount : allContacts.length;
+    
     setTotalMetrics({
-      totalContacts: totalContactCount > 0 ? totalContactCount : allContacts.length, // Use real count if available
+      totalContacts: actualTotalCount,
+      accountGroups: contactGroups.length,
+      leadsAbove80: allContacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length,
+      readyContacts: allContacts.filter(c => ['Yes', 'yes'].includes(c.sent_to_client || '')).length
+    });
+
+    console.log(`✅ Metrics calculated:`, {
+      totalContacts: actualTotalCount,
       accountGroups: contactGroups.length,
       leadsAbove80: allContacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length,
       readyContacts: allContacts.filter(c => ['Yes', 'yes'].includes(c.sent_to_client || '')).length
@@ -254,25 +308,33 @@ function App() {
     if (!editing.contactId || !editing.field) return;
 
     try {
-      // In a real implementation, this would make a PATCH request to Supabase
       console.log('💾 Saving edit:', editing);
       
+      // Update Supabase
+      const { error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .update({ [editing.field]: editing.value })
+        .eq('linkedin_profile_url', editing.contactId);
+
+      if (error) {
+        console.error('❌ Error updating contact:', error);
+        return;
+      }
+
       // Update local state optimistically
       setContactGroups(prevGroups => 
         prevGroups.map(group => ({
           ...group,
           contacts: group.contacts.map(contact => 
-            contact.id === editing.contactId 
+            (contact.linkedin_profile_url === editing.contactId || contact.id === editing.contactId)
               ? { ...contact, [editing.field!]: editing.value }
               : contact
           )
         }))
       );
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       setEditing({ contactId: null, field: null, value: '' });
+      console.log('✅ Contact updated successfully');
     } catch (error) {
       console.error('❌ Error saving edit:', error);
     }
@@ -332,6 +394,7 @@ function App() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading contacts...</p>
+          <p className="text-sm text-gray-500 mt-2">Fetching all records with pagination...</p>
         </div>
       </div>
     );
@@ -415,7 +478,7 @@ function App() {
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Contacts by Account Email</h2>
-            <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
+            <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds • Paginated to fetch all records</p>
           </div>
           
           <div className="divide-y divide-gray-200">
@@ -462,7 +525,7 @@ function App() {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {group.contacts.map((contact) => (
-                            <React.Fragment key={contact.id || contact.linkedin_profile_url}>
+                            <React.Fragment key={contact.linkedin_profile_url || contact.id}>
                               {/* Contact Summary Row */}
                               <tr className="hover:bg-gray-50">
                                 <td className="py-3">
@@ -487,16 +550,16 @@ function App() {
                                 </td>
                                 <td className="py-3">
                                   <button
-                                    onClick={() => toggleContactExpansion(contact.id || contact.linkedin_profile_url || '')}
+                                    onClick={() => toggleContactExpansion(contact.linkedin_profile_url || contact.id || '')}
                                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                   >
-                                    {expandedContacts.has(contact.id || contact.linkedin_profile_url || '') ? 'Hide Details' : 'View Details'}
+                                    {expandedContacts.has(contact.linkedin_profile_url || contact.id || '') ? 'Hide Details' : 'View Details'}
                                   </button>
                                 </td>
                               </tr>
 
                               {/* Contact Details Row */}
-                              {expandedContacts.has(contact.id || contact.linkedin_profile_url || '') && (
+                              {expandedContacts.has(contact.linkedin_profile_url || contact.id || '') && (
                                 <tr>
                                   <td colSpan={5} className="py-6 bg-gray-50">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -522,7 +585,7 @@ function App() {
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-center">
                                               <span className="text-sm text-gray-600">{label}:</span>
-                                              {editing.contactId === contact.id && editing.field === field ? (
+                                              {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
                                                   <input
                                                     type="text"
@@ -540,7 +603,7 @@ function App() {
                                               ) : (
                                                 <span
                                                   className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded"
-                                                  onClick={() => startEditing(contact.id || '', field, value || '')}
+                                                  onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
                                                 >
                                                   {value || 'Not provided'}
                                                 </span>
@@ -581,7 +644,7 @@ function App() {
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-center">
                                               <span className="text-sm text-gray-600">{label}:</span>
-                                              {editing.contactId === contact.id && editing.field === field ? (
+                                              {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
                                                   <input
                                                     type="text"
@@ -599,7 +662,7 @@ function App() {
                                               ) : (
                                                 <span
                                                   className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded"
-                                                  onClick={() => startEditing(contact.id || '', field, value || '')}
+                                                  onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
                                                 >
                                                   {value || 'Not provided'}
                                                 </span>
@@ -631,7 +694,7 @@ function App() {
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-start">
                                               <span className="text-sm text-gray-600 mr-2">{label}:</span>
-                                              {editing.contactId === contact.id && editing.field === field ? (
+                                              {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
                                                   <textarea
                                                     value={editing.value}
@@ -650,7 +713,7 @@ function App() {
                                               ) : (
                                                 <span
                                                   className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded text-right flex-1"
-                                                  onClick={() => startEditing(contact.id || '', field, value || '')}
+                                                  onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
                                                 >
                                                   {value || 'Not provided'}
                                                 </span>
