@@ -64,8 +64,16 @@ async function fetchAllPages(
 ): Promise<Contact[]> {
   let all: Contact[] = [];
   let from = 0;
+  let pageCount = 0;
+  
+  console.log(`🔄 Starting to fetch all pages for ${column}=${value}`);
+  
   while (true) {
+    pageCount++;
     const to = from + PAGE_SIZE - 1;
+    
+    console.log(`📄 Fetching page ${pageCount}: range ${from}-${to}`);
+    
     const { data, error } = await supabase
       .from<Contact>(table)
       .select('*')
@@ -74,15 +82,25 @@ async function fetchAllPages(
       .range(from, to);
 
     if (error) {
-      console.error(`Paging error on ${column}=${value}`, error);
+      console.error(`❌ Paging error on ${column}=${value}`, error);
       break;
     }
-    if (!data || data.length === 0) break;
+    if (!data || data.length === 0) {
+      console.log(`🛑 No more data on page ${pageCount}`);
+      break;
+    }
 
+    console.log(`✅ Page ${pageCount} returned ${data.length} records`);
     all = all.concat(data);
-    if (data.length < PAGE_SIZE) break;  // last page
+    
+    if (data.length < PAGE_SIZE) {
+      console.log(`🎯 Last page detected (${data.length} < ${PAGE_SIZE})`);
+      break;  // last page
+    }
     from += PAGE_SIZE;
   }
+  
+  console.log(`📊 Total records fetched for ${column}=${value}: ${all.length} (across ${pageCount} pages)`);
   return all;
 }
 
@@ -103,13 +121,23 @@ function App() {
 
       const clientEmail = 'leonard@ontenlabs.com';
 
+      console.log('🚀 Starting contact fetch process...');
+      console.log(`🎯 Target client email: ${clientEmail}`);
+
       // 1) get exact count
+      console.log('\n📊 Step 1: Getting exact count...');
       const { count: totalCount, error: countError } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true })
         .eq('client_email', clientEmail);
 
+      console.log(`📈 Exact count result: ${totalCount}`);
+      if (countError) {
+        console.error('❌ Count error:', countError);
+      }
+
       // 2) page through client_email
+      console.log('\n📊 Step 2: Fetching by client_email...');
       const allContacts = await fetchAllPages(
         'icp_contacts_tracking_in_progress',
         'client_email',
@@ -117,11 +145,34 @@ function App() {
       );
 
       // 3) page through client_email_id
+      console.log('\n📊 Step 3: Fetching by client_email_id...');
       const contactsByEmailId = await fetchAllPages(
         'icp_contacts_tracking_in_progress',
         'client_email_id',
         clientEmail
       );
+
+      // Log comprehensive results
+      console.log('\n📊 === CONTACT DATA COUNT SUMMARY ===');
+      console.log(`🔢 Exact count (HEAD request): ${totalCount}`);
+      console.log(`📧 client_email results: ${allContacts.length}`);
+      console.log(`🆔 client_email_id results: ${contactsByEmailId.length}`);
+      console.log(`📊 Count error: ${countError ? countError.message : 'None'}`);
+      
+      // Compare results
+      if (allContacts.length !== contactsByEmailId.length) {
+        console.log(`⚠️  MISMATCH: client_email (${allContacts.length}) vs client_email_id (${contactsByEmailId.length})`);
+      } else {
+        console.log(`✅ MATCH: Both queries returned ${allContacts.length} records`);
+      }
+
+      // Check against exact count
+      const maxResults = Math.max(allContacts.length, contactsByEmailId.length);
+      if (totalCount !== null && totalCount !== maxResults) {
+        console.log(`⚠️  COUNT DISCREPANCY: Exact count (${totalCount}) vs Max results (${maxResults})`);
+      } else {
+        console.log(`✅ COUNT MATCH: Exact count matches results`);
+      }
 
       setDebugInfo({
         totalCount,
@@ -137,13 +188,14 @@ function App() {
           ? allContacts
           : contactsByEmailId;
 
+      console.log(`🎯 Using ${allContacts.length >= contactsByEmailId.length ? 'client_email' : 'client_email_id'} results (${contactsData.length} records)`);
+
       if (contactsData.length === 0) {
+        console.log('❌ No contacts found');
         setError('No contacts found');
       } else {
         setContacts(contactsData);
         setTotalContacts(contactsData.length);
-
-        
 
         const uniqueCompanies = new Set(
           contactsData.map((c) => c.company_domain || c.company_name)
@@ -159,9 +211,17 @@ function App() {
           ['Yes', 'yes'].includes(c.sent_to_client)
         ).length;
         setReadyToSendContacts(ready);
+
+        // Log final statistics
+        console.log('\n📊 === FINAL STATISTICS ===');
+        console.log(`👥 Total Contacts: ${contactsData.length}`);
+        console.log(`🏢 Unique Companies: ${uniqueCompanies}`);
+        console.log(`🎯 Leads Above 80: ${above80}`);
+        console.log(`✅ Ready to Send: ${ready}`);
+        console.log('==============================\n');
       }
     } catch (err) {
-      console.error('Error fetching contacts:', err);
+      console.error('💥 Error fetching contacts:', err);
       setError('Failed to fetch contacts');
     } finally {
       setLoading(false);
@@ -221,7 +281,7 @@ function App() {
 
           {debugInfo && (
             <div className="mb-6 p-4 bg-gray-100 rounded-lg">
-              <h3 className="font-semibold mb-2">Debug Info:</h3>
+              <h3 className="font-semibold mb-2">Debug Info (also check browser console for detailed logs):</h3>
               <div className="text-sm space-y-1">
                 <p>Total Count (exact): {debugInfo.totalCount}</p>
                 <p>client_email results: {debugInfo.allContactsCount}</p>
