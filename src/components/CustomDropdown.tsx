@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Mail, User } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface DropdownOption {
   value: string;
