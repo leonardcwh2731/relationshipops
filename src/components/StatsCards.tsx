@@ -45,18 +45,18 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
   ];
 
   return (
-    <div className="flex space-x-3 mb-8 overflow-x-auto">
+    <div className="flex space-x-2 mb-8" style={{ flexWrap: 'nowrap' }}>
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (
-          <div key={stat.name} className={`${stat.bgColor} rounded-lg p-4 border border-gray-200 min-w-0 flex-1`}>
+          <div key={stat.name} className={`${stat.bgColor} rounded-lg p-3 border border-gray-200 flex-1 min-w-0`} style={{ maxWidth: '25%' }}>
             <div className="flex items-center">
               <div className={`${stat.color} rounded-lg p-2`}>
-                <Icon className="w-5 h-5 text-white" />
+                <Icon className="w-4 h-4 text-white" />
               </div>
-              <div className="ml-3 min-w-0">
-                <p className={`text-xs font-medium ${stat.textColor} whitespace-nowrap`}>{stat.name}</p>
-                <p className={`text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
+              <div className="ml-2 min-w-0 flex-1">
+                <p className={`text-xs font-medium ${stat.textColor} whitespace-nowrap text-ellipsis overflow-hidden`}>{stat.name}</p>
+                <p className={`text-lg font-bold ${stat.textColor}`}>{stat.value}</p>
               </div>
             </div>
           </div>
