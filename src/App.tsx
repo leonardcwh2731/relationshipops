@@ -143,6 +143,8 @@ function App() {
         setContacts(contactsData);
         setTotalContacts(contactsData.length);
 
+        
+
         const uniqueCompanies = new Set(
           contactsData.map((c) => c.company_domain || c.company_name)
         ).size;
