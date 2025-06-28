@@ -59,7 +59,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
               {selectedOption.icon}
             </span>
           )}
-          <span className="text-gray-900">
+          <span className="text-lg font-medium text-gray-900">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
         </div>
@@ -72,20 +72,20 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden max-h-60 overflow-y-auto">
           <div className="py-1">
             {options.map((option) => (
               <button
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
-                className="w-full px-4 py-3 text-left text-white hover:bg-gray-700 transition-colors duration-150 flex items-center group"
+                className="w-full px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors duration-150 flex items-center group"
               >
                 {option.icon && (
-                  <span className="mr-3 text-gray-400 group-hover:text-white transition-colors duration-150">
+                  <span className="mr-3 text-gray-500 group-hover:text-gray-700 transition-colors duration-150">
                     {option.icon}
                   </span>
                 )}
-                <span className="text-sm font-medium">{option.label}</span>
+                <span className="text-lg font-medium">{option.label}</span>
               </button>
             ))}
           </div>

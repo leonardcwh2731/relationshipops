@@ -351,16 +351,16 @@ function App() {
     setEditing({ contactId: null, field: null, value: '' });
   };
 
-  const filteredGroups = contactGroups.filter(group => {
+  const filteredGroups = contactGroups.map(group => {
     // Filter by selected account email first
     if (selectedAccountEmail && group.accountEmail !== selectedAccountEmail) {
-      return false;
+      return null;
     }
     
-    // If there's a search term, filter by contact details
+    // If there's a search term, filter contacts within the group
     if (searchTerm && searchTerm.trim() !== '') {
       const searchLower = searchTerm.toLowerCase().trim();
-      return group.contacts.some(contact => 
+      const filteredContacts = group.contacts.filter(contact => 
         (contact.full_name && contact.full_name.toLowerCase().includes(searchLower)) ||
         (contact.first_name && contact.first_name.toLowerCase().includes(searchLower)) ||
         (contact.last_name && contact.last_name.toLowerCase().includes(searchLower)) ||
@@ -369,10 +369,20 @@ function App() {
         (contact.work_email && contact.work_email.toLowerCase().includes(searchLower)) ||
         (contact.company_domain && contact.company_domain.toLowerCase().includes(searchLower))
       );
+      
+      // Only return the group if it has matching contacts
+      if (filteredContacts.length > 0) {
+        return {
+          ...group,
+          contacts: filteredContacts,
+          leadsAbove80: filteredContacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length
+        };
+      }
+      return null;
     }
     
-    return true;
-  });
+    return group;
+  }).filter(group => group !== null) as ContactGroup[];
 
   const uniqueAccountEmails = contactGroups.map(group => group.accountEmail);
 
