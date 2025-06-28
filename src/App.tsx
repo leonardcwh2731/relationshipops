@@ -165,6 +165,7 @@ function App() {
         connection_count: 0,
         followers_count: 0,
         lead_country: 'India',
+        created_at: '2025-01-10T08:30:00Z',
         account_email: 'leonard@ontenlabs.com'
       },
       {
@@ -192,6 +193,7 @@ function App() {
         connection_count: 500,
         followers_count: 1200,
         lead_country: 'United States',
+        created_at: '2025-01-08T16:45:00Z',
         account_email: 'peter.kang@barrelny.com'
       },
       {
@@ -219,6 +221,7 @@ function App() {
         connection_count: 750,
         followers_count: 890,
         lead_country: 'Canada',
+        created_at: '2025-01-12T11:20:00Z',
         account_email: 'peter.kang@barrelny.com'
       }
     ];
@@ -581,9 +584,10 @@ function App() {
                                 <td className="py-3">
                                   <button
                                     onClick={() => toggleContactExpansion(contact.linkedin_profile_url || contact.id || '')}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    className="inline-flex items-center text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors duration-200"
                                   >
-                                    {expandedContacts.has(contact.linkedin_profile_url || contact.id || '') ? 'Hide Details' : 'View Details'}
+                                    <ChevronRight className="w-4 h-4 mr-1" />
+                                    {expandedContacts.has(contact.linkedin_profile_url || contact.id || '') ? 'Hide Details' : 'Show Details'}
                                   </button>
                                 </td>
                               </tr>
@@ -610,7 +614,8 @@ function App() {
                                             { label: 'Work Email', field: 'work_email', value: contact.work_email },
                                             { label: 'Country', field: 'lead_country', value: contact.lead_country },
                                             { label: 'LinkedIn Connections', field: 'connection_count', value: contact.connection_count?.toString() },
-                                            { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() }
+                                            { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() },
+                                            { label: 'Added On', field: 'created_at', value: formatDate(contact.created_at) }
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-center group">
                                               <span className="text-sm text-gray-600">{label}:</span>
@@ -632,7 +637,7 @@ function App() {
                                               ) : (
                                                 <div className="flex items-center space-x-2">
                                                   <span className="text-sm text-gray-900">
-                                                    {field === 'work_email' && value ? (
+                                                    {field === 'work_email' && value && value !== '-' ? (
                                                       <a 
                                                         href={`mailto:${value}`}
                                                         className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -644,7 +649,7 @@ function App() {
                                                     )}
                                                   </span>
                                                   <button
-                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, field === 'created_at' ? contact.created_at || '' : value || '')}
                                                     className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                                   >
                                                     <Edit className="w-4 h-4" />
@@ -704,7 +709,7 @@ function App() {
                                               ) : (
                                                 <div className="flex items-center space-x-2">
                                                   <span className="text-sm text-gray-900">
-                                                    {field === 'company_domain' && value ? (
+                                                    {field === 'company_domain' && value && value !== '-' ? (
                                                       <a 
                                                         href={`https://${value}`}
                                                         target="_blank"
@@ -786,7 +791,7 @@ function App() {
                                                     {formatFieldValue(value)}
                                                   </span>
                                                   <button
-                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, field.includes('date') ? (field === 'last_interaction_date' ? contact.last_interaction_date || '' : contact.exact_sent_date || '') : value || '')}
                                                     className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
                                                   >
                                                     <Edit className="w-4 h-4" />
