@@ -48,10 +48,12 @@ interface Contact {
 }
 
 interface DebugInfo {
+  totalTableRecords: number | null;
   totalCount: number | null;
   allContactsCount: number;
   contactsByEmailIdCount: number;
   countError: any;
+  tableCountError: any;
   sampleContact: Contact | null;
 }
 
@@ -124,14 +126,27 @@ function App() {
       console.log('🚀 Starting contact fetch process...');
       console.log(`🎯 Target client email: ${clientEmail}`);
 
-      // 1) get exact count
-      console.log('\n📊 Step 1: Getting exact count...');
+      // 0) Get total table record count (equivalent to: SELECT COUNT(*) FROM public.icp_contacts_tracking_in_progress)
+      console.log('\n📊 Step 0: Getting total table record count...');
+      console.log('🗃️  Executing: SELECT COUNT(*) AS record_count FROM public.icp_contacts_tracking_in_progress');
+      
+      const { count: totalTableRecords, error: tableCountError } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*', { count: 'exact', head: true });
+
+      console.log(`📊 Total records in entire table: ${totalTableRecords}`);
+      if (tableCountError) {
+        console.error('❌ Table count error:', tableCountError);
+      }
+
+      // 1) get exact count for client email
+      console.log('\n📊 Step 1: Getting exact count for client email filter...');
       const { count: totalCount, error: countError } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true })
         .eq('client_email', clientEmail);
 
-      console.log(`📈 Exact count result: ${totalCount}`);
+      console.log(`📈 Filtered count result (client_email = '${clientEmail}'): ${totalCount}`);
       if (countError) {
         console.error('❌ Count error:', countError);
       }
@@ -154,10 +169,12 @@ function App() {
 
       // Log comprehensive results
       console.log('\n📊 === CONTACT DATA COUNT SUMMARY ===');
-      console.log(`🔢 Exact count (HEAD request): ${totalCount}`);
+      console.log(`🗃️  Total table records: ${totalTableRecords} (entire table)`);
+      console.log(`🔢 Exact count (HEAD request): ${totalCount} (filtered by client_email)`);
       console.log(`📧 client_email results: ${allContacts.length}`);
       console.log(`🆔 client_email_id results: ${contactsByEmailId.length}`);
-      console.log(`📊 Count error: ${countError ? countError.message : 'None'}`);
+      console.log(`📊 Table count error: ${tableCountError ? tableCountError.message : 'None'}`);
+      console.log(`📊 Filter count error: ${countError ? countError.message : 'None'}`);
       
       // Compare results
       if (allContacts.length !== contactsByEmailId.length) {
@@ -174,11 +191,19 @@ function App() {
         console.log(`✅ COUNT MATCH: Exact count matches results`);
       }
 
+      // Check table vs filtered ratios
+      if (totalTableRecords !== null && totalCount !== null) {
+        const percentage = ((totalCount / totalTableRecords) * 100).toFixed(2);
+        console.log(`📊 Client data represents ${percentage}% of total table (${totalCount}/${totalTableRecords})`);
+      }
+
       setDebugInfo({
+        totalTableRecords,
         totalCount,
         allContactsCount: allContacts.length,
         contactsByEmailIdCount: contactsByEmailId.length,
         countError,
+        tableCountError,
         sampleContact: allContacts[0] || null,
       });
 
@@ -283,11 +308,18 @@ function App() {
             <div className="mb-6 p-4 bg-gray-100 rounded-lg">
               <h3 className="font-semibold mb-2">Debug Info (also check browser console for detailed logs):</h3>
               <div className="text-sm space-y-1">
-                <p>Total Count (exact): {debugInfo.totalCount}</p>
-                <p>client_email results: {debugInfo.allContactsCount}</p>
-                <p>client_email_id results: {debugInfo.contactsByEmailIdCount}</p>
+                <p><strong>Total Table Records:</strong> {debugInfo.totalTableRecords} (entire table)</p>
+                <p><strong>Filtered Count (exact):</strong> {debugInfo.totalCount} (client_email filter)</p>
+                <p><strong>client_email results:</strong> {debugInfo.allContactsCount}</p>
+                <p><strong>client_email_id results:</strong> {debugInfo.contactsByEmailIdCount}</p>
+                {debugInfo.totalTableRecords && debugInfo.totalCount && (
+                  <p><strong>Filter Percentage:</strong> {((debugInfo.totalCount / debugInfo.totalTableRecords) * 100).toFixed(2)}% of total data</p>
+                )}
+                {debugInfo.tableCountError && (
+                  <p className="text-red-600">Table Count Error: {debugInfo.tableCountError.message}</p>
+                )}
                 {debugInfo.countError && (
-                  <p className="text-red-600">Count Error: {debugInfo.countError.message}</p>
+                  <p className="text-red-600">Filter Count Error: {debugInfo.countError.message}</p>
                 )}
                 {debugInfo.sampleContact && (
                   <details className="mt-2">
