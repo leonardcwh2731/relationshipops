@@ -19,7 +19,7 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
       textColor: 'text-white'
     },
     {
-      name: 'Total Contacts Count',
+      name: 'Contacts',
       value: totalContacts.toLocaleString(),
       icon: Users,
       color: 'bg-black',
