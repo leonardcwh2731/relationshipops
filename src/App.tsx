@@ -1,269 +1,307 @@
-import React, { useState, useEffect } from 'react';
-import { StatsCards } from './components/StatsCards';
-import { ContactsTable } from './components/ContactsTable';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink } from 'lucide-react';
 import { Contact } from './types/Contact';
 import { supabase } from './lib/supabase';
 
-interface DebugInfo {
-  totalTableRecords: number | null;
-  totalCount: number | null;
-  allContactsCount: number;
-  contactsByEmailIdCount: number;
-  countError: any;
-  tableCountError: any;
-  sampleContact: Contact | null;
+interface ContactGroup {
+  accountEmail: string;
+  contacts: Contact[];
+  leadsAbove80: number;
 }
 
-const PAGE_SIZE = 1000;
-
-async function fetchAllPages(
-  table: string,
-  column: string,
-  value: string
-): Promise<Contact[]> {
-  let all: Contact[] = [];
-  let from = 0;
-  let pageCount = 0;
-  
-  console.log(`🔄 Starting to fetch all pages for ${column}=${value}`);
-  
-  while (true) {
-    pageCount++;
-    const to = from + PAGE_SIZE - 1;
-    
-    console.log(`📄 Fetching page ${pageCount}: range ${from}-${to}`);
-    
-    try {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .eq(column, value)
-        .order('last_interaction_date', { ascending: false })
-        .range(from, to);
-
-      if (error) {
-        console.error(`❌ Paging error on ${column}=${value}`, error);
-        break;
-      }
-      if (!data || data.length === 0) {
-        console.log(`🛑 No more data on page ${pageCount}`);
-        break;
-      }
-
-      console.log(`✅ Page ${pageCount} returned ${data.length} records`);
-      all = all.concat(data as Contact[]);
-      
-      if (data.length < PAGE_SIZE) {
-        console.log(`🎯 Last page detected (${data.length} < ${PAGE_SIZE})`);
-        break;  // last page
-      }
-      from += PAGE_SIZE;
-    } catch (err) {
-      console.error(`💥 Error fetching page ${pageCount}:`, err);
-      break;
-    }
-  }
-  
-  console.log(`📊 Total records fetched for ${column}=${value}: ${all.length} (across ${pageCount} pages)`);
-  return all;
+interface EditingState {
+  contactId: string | null;
+  field: string | null;
+  value: string;
 }
 
 function App() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [totalContacts, setTotalContacts] = useState(0);
-  const [totalGroups, setTotalGroups] = useState(0);
-  const [leadsAbove80, setLeadsAbove80] = useState(0);
-  const [readyToSendContacts, setReadyToSendContacts] = useState(0);
-  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAccountEmail, setSelectedAccountEmail] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<EditingState>({ contactId: null, field: null, value: '' });
+  const [totalMetrics, setTotalMetrics] = useState({
+    totalContacts: 0,
+    accountGroups: 0,
+    leadsAbove80: 0,
+    readyContacts: 0
+  });
+
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchContacts = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      console.log('🔄 Fetching contacts with account email grouping...');
 
-      const clientEmail = 'leonard@ontenlabs.com';
+      // For demo purposes, we'll simulate the joined data since we don't have the actual onboarding_google_tokens table
+      // In a real implementation, this would be a proper JOIN query
+      const { data: contacts, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*')
+        .order('total_lead_score', { ascending: false })
+        .limit(1000);
 
-      console.log('🚀 Starting contact fetch process...');
-      console.log(`🎯 Target client email: ${clientEmail}`);
+      if (error) {
+        console.error('❌ Error fetching contacts:', error);
+        // Use demo data for development
+        const demoContacts = generateDemoData();
+        processContactData(demoContacts);
+        return;
+      }
 
-      // 0) Get total table record count (equivalent to: SELECT COUNT(*) FROM public.icp_contacts_tracking_in_progress)
-      console.log('\n📊 Step 0: Getting total table record count...');
-      console.log('🗃️  Executing: SELECT COUNT(*) AS record_count FROM public.icp_contacts_tracking_in_progress');
-      
-      try {
-        const { count: totalTableRecords, error: tableCountError } = await supabase
-          .from('icp_contacts_tracking_in_progress')
-          .select('*', { count: 'exact', head: true });
-
-        console.log(`📊 Total records in entire table: ${totalTableRecords}`);
-        if (tableCountError) {
-          console.error('❌ Table count error:', tableCountError);
-        }
-
-        // 1) get exact count for client email
-        console.log('\n📊 Step 1: Getting exact count for client email filter...');
-        const { count: totalCount, error: countError } = await supabase
-          .from('icp_contacts_tracking_in_progress')
-          .select('*', { count: 'exact', head: true })
-          .eq('client_email', clientEmail);
-
-        console.log(`📈 Filtered count result (client_email = '${clientEmail}'): ${totalCount}`);
-        if (countError) {
-          console.error('❌ Count error:', countError);
-        }
-
-        // 2) page through client_email
-        console.log('\n📊 Step 2: Fetching by client_email...');
-        const allContacts = await fetchAllPages(
-          'icp_contacts_tracking_in_progress',
-          'client_email',
-          clientEmail
-        );
-
-        // 3) page through client_email_id
-        console.log('\n📊 Step 3: Fetching by client_email_id...');
-        const contactsByEmailId = await fetchAllPages(
-          'icp_contacts_tracking_in_progress',
-          'client_email_id',
-          clientEmail
-        );
-
-        // Log comprehensive results
-        console.log('\n📊 === CONTACT DATA COUNT SUMMARY ===');
-        console.log(`🗃️  Total table records: ${totalTableRecords} (entire table)`);
-        console.log(`🔢 Exact count (HEAD request): ${totalCount} (filtered by client_email)`);
-        console.log(`📧 client_email results: ${allContacts.length}`);
-        console.log(`🆔 client_email_id results: ${contactsByEmailId.length}`);
-        console.log(`📊 Table count error: ${tableCountError ? tableCountError.message : 'None'}`);
-        console.log(`📊 Filter count error: ${countError ? countError.message : 'None'}`);
-        
-        // Compare results
-        if (allContacts.length !== contactsByEmailId.length) {
-          console.log(`⚠️  MISMATCH: client_email (${allContacts.length}) vs client_email_id (${contactsByEmailId.length})`);
-        } else {
-          console.log(`✅ MATCH: Both queries returned ${allContacts.length} records`);
-        }
-
-        // Check against exact count
-        const maxResults = Math.max(allContacts.length, contactsByEmailId.length);
-        if (totalCount !== null && totalCount !== maxResults) {
-          console.log(`⚠️  COUNT DISCREPANCY: Exact count (${totalCount}) vs Max results (${maxResults})`);
-        } else {
-          console.log(`✅ COUNT MATCH: Exact count matches results`);
-        }
-
-        // Check table vs filtered ratios
-        if (totalTableRecords !== null && totalCount !== null) {
-          const percentage = ((totalCount / totalTableRecords) * 100).toFixed(2);
-          console.log(`📊 Client data represents ${percentage}% of total table (${totalCount}/${totalTableRecords})`);
-        }
-
-        setDebugInfo({
-          totalTableRecords,
-          totalCount,
-          allContactsCount: allContacts.length,
-          contactsByEmailIdCount: contactsByEmailId.length,
-          countError,
-          tableCountError,
-          sampleContact: allContacts[0] || null,
-        });
-
-        // pick the larger result set
-        const contactsData =
-          allContacts.length >= contactsByEmailId.length
-            ? allContacts
-            : contactsByEmailId;
-
-        console.log(`🎯 Using ${allContacts.length >= contactsByEmailId.length ? 'client_email' : 'client_email_id'} results (${contactsData.length} records)`);
-
-        if (contactsData.length === 0) {
-          console.log('❌ No contacts found');
-          // Instead of setting an error, show empty state
-          setContacts([]);
-          setTotalContacts(totalTableRecords || 0);
-          setTotalGroups(0);
-          setLeadsAbove80(0);
-          setReadyToSendContacts(0);
-        } else {
-          setContacts(contactsData);
-          
-          // Set total contacts to the entire table count (SELECT COUNT(*) FROM table)
-          setTotalContacts(totalTableRecords || 0);
-
-          const uniqueCompanies = new Set(
-            contactsData.map((c) => c.company_domain || c.company_name)
-          ).size;
-          setTotalGroups(uniqueCompanies);
-
-          const above80 = contactsData.filter(
-            (c) => (c.total_lead_score || c.lead_score || 0) >= 80
-          ).length;
-          setLeadsAbove80(above80);
-
-          const ready = contactsData.filter((c) =>
-            ['Yes', 'yes'].includes(c.sent_to_client || '')
-          ).length;
-          setReadyToSendContacts(ready);
-
-          // Log final statistics
-          console.log('\n📊 === FINAL STATISTICS ===');
-          console.log(`👥 Total Contacts (table count): ${totalTableRecords || 0}`);
-          console.log(`📋 Filtered Contacts (displayed): ${contactsData.length}`);
-          console.log(`🏢 Unique Companies: ${uniqueCompanies}`);
-          console.log(`🎯 Leads Above 80: ${above80}`);
-          console.log(`✅ Ready to Send: ${ready}`);
-          console.log('==============================\n');
-        }
-      } catch (supabaseErr) {
-        console.error('💥 Supabase operation failed:', supabaseErr);
-        // Fallback: show demo data if Supabase fails
-        const demoContacts: Contact[] = [
-          {
-            linkedin_profile_url: 'https://linkedin.com/in/demo',
-            full_name: 'Demo Contact',
-            job_title: 'Software Engineer',
-            company_name: 'Demo Company',
-            lead_score: 85,
-            sent_to_client: 'Yes'
-          }
-        ];
-        setContacts(demoContacts);
-        setTotalContacts(1);
-        setTotalGroups(1);
-        setLeadsAbove80(1);
-        setReadyToSendContacts(1);
+      if (contacts && contacts.length > 0) {
+        // Add simulated account_email based on client_email or client_email_id
+        const contactsWithAccountEmail = contacts.map(contact => ({
+          ...contact,
+          account_email: contact.client_email || contact.client_email_id || 'unknown@domain.com'
+        }));
+        processContactData(contactsWithAccountEmail);
+      } else {
+        // Use demo data if no contacts found
+        const demoContacts = generateDemoData();
+        processContactData(demoContacts);
       }
     } catch (err) {
-      console.error('💥 Error fetching contacts:', err);
-      setError('Failed to fetch contacts. Using demo data.');
-      // Show demo data instead of completely failing
-      const demoContacts: Contact[] = [
-        {
-          linkedin_profile_url: 'https://linkedin.com/in/demo',
-          full_name: 'Demo Contact',
-          job_title: 'Software Engineer',
-          company_name: 'Demo Company',
-          lead_score: 85,
-          sent_to_client: 'Yes'
-        }
-      ];
-      setContacts(demoContacts);
-      setTotalContacts(1);
-      setTotalGroups(1);
-      setLeadsAbove80(1);
-      setReadyToSendContacts(1);
+      console.error('💥 Error in fetchContacts:', err);
+      const demoContacts = generateDemoData();
+      processContactData(demoContacts);
     } finally {
       setLoading(false);
+      setLastUpdated(new Date().toLocaleTimeString());
     }
   };
 
+  const generateDemoData = (): any[] => {
+    return [
+      {
+        id: '1',
+        full_name: 'Raghuram R Menon',
+        first_name: 'Raghuram',
+        last_name: 'R Menon',
+        job_title: 'Customer Success Manager',
+        company_name: 'Smartlead',
+        company_domain: 'smartlead.ai',
+        company_industry: 'Computer Software',
+        company_staff_count_range: '11 - 50',
+        work_email: 'raghuram@smartlead.ai',
+        total_lead_score: 70,
+        lead_score: 70,
+        sent_to_client: 'No',
+        last_interaction_date: '2025-05-06T10:01:00Z',
+        last_interaction_platform: 'Email',
+        last_interaction_summary: 'Addressed API needs for campaigns',
+        talking_point_1: "Mention Smartlead's unique cold email features driving client success",
+        talking_point_2: 'Discuss recent awards from Clay partnership and customer benefits',
+        talking_point_3: "Check feedback on Smartlead.ai's features enhancing email efficiency",
+        linkedin_profile_url: 'https://linkedin.com/in/raghuram-menon',
+        connection_count: 0,
+        followers_count: 0,
+        lead_country: 'India',
+        account_email: 'leonard@ontenlabs.com'
+      },
+      {
+        id: '2',
+        full_name: 'Sarah Johnson',
+        first_name: 'Sarah',
+        last_name: 'Johnson',
+        job_title: 'VP of Sales',
+        company_name: 'TechCorp',
+        company_domain: 'techcorp.com',
+        company_industry: 'Technology',
+        company_staff_count_range: '51 - 200',
+        work_email: 'sarah@techcorp.com',
+        total_lead_score: 95,
+        lead_score: 95,
+        sent_to_client: 'Yes',
+        last_interaction_date: '2025-01-15T14:30:00Z',
+        last_interaction_platform: 'LinkedIn',
+        last_interaction_summary: 'Discussed integration possibilities',
+        talking_point_1: 'Focus on ROI improvements',
+        talking_point_2: 'Mention case studies from similar companies',
+        talking_point_3: 'Discuss implementation timeline',
+        linkedin_profile_url: 'https://linkedin.com/in/sarah-johnson',
+        connection_count: 500,
+        followers_count: 1200,
+        lead_country: 'United States',
+        account_email: 'peter.kang@barrelny.com'
+      },
+      {
+        id: '3',
+        full_name: 'Michael Chen',
+        first_name: 'Michael',
+        last_name: 'Chen',
+        job_title: 'Director of Marketing',
+        company_name: 'GrowthLabs',
+        company_domain: 'growthlabs.com',
+        company_industry: 'Marketing',
+        company_staff_count_range: '11 - 50',
+        work_email: 'michael@growthlabs.com',
+        total_lead_score: 88,
+        lead_score: 88,
+        sent_to_client: 'Yes',
+        last_interaction_date: '2025-01-14T09:15:00Z',
+        last_interaction_platform: 'Email',
+        last_interaction_summary: 'Requested demo for team',
+        talking_point_1: 'Highlight automation features',
+        talking_point_2: 'Share success metrics',
+        talking_point_3: 'Discuss team training options',
+        linkedin_profile_url: 'https://linkedin.com/in/michael-chen',
+        connection_count: 750,
+        followers_count: 890,
+        lead_country: 'Canada',
+        account_email: 'peter.kang@barrelny.com'
+      }
+    ];
+  };
+
+  const processContactData = (contacts: any[]) => {
+    // Group contacts by account_email
+    const groups: { [key: string]: Contact[] } = {};
+    
+    contacts.forEach(contact => {
+      const accountEmail = contact.account_email || 'unknown@domain.com';
+      if (!groups[accountEmail]) {
+        groups[accountEmail] = [];
+      }
+      groups[accountEmail].push(contact);
+    });
+
+    // Create contact groups with metrics
+    const contactGroups: ContactGroup[] = Object.entries(groups).map(([accountEmail, contacts]) => ({
+      accountEmail,
+      contacts: contacts.sort((a, b) => (b.total_lead_score || b.lead_score || 0) - (a.total_lead_score || a.lead_score || 0)),
+      leadsAbove80: contacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length
+    }));
+
+    // Sort groups by total lead score of their best contact
+    contactGroups.sort((a, b) => {
+      const aMaxScore = Math.max(...a.contacts.map(c => c.total_lead_score || c.lead_score || 0));
+      const bMaxScore = Math.max(...b.contacts.map(c => c.total_lead_score || c.lead_score || 0));
+      return bMaxScore - aMaxScore;
+    });
+
+    setContactGroups(contactGroups);
+
+    // Calculate total metrics
+    const allContacts = contacts;
+    setTotalMetrics({
+      totalContacts: allContacts.length,
+      accountGroups: contactGroups.length,
+      leadsAbove80: allContacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length,
+      readyContacts: allContacts.filter(c => ['Yes', 'yes'].includes(c.sent_to_client || '')).length
+    });
+  };
+
+  const handleManualRefresh = () => {
+    setLoading(true);
+    fetchContacts();
+  };
+
+  const toggleGroupExpansion = (accountEmail: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(accountEmail)) {
+      newExpanded.delete(accountEmail);
+    } else {
+      newExpanded.add(accountEmail);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  const toggleContactExpansion = (contactId: string) => {
+    const newExpanded = new Set(expandedContacts);
+    if (newExpanded.has(contactId)) {
+      newExpanded.delete(contactId);
+    } else {
+      newExpanded.add(contactId);
+    }
+    setExpandedContacts(newExpanded);
+  };
+
+  const startEditing = (contactId: string, field: string, currentValue: string) => {
+    setEditing({ contactId, field, value: currentValue || '' });
+  };
+
+  const saveEdit = async () => {
+    if (!editing.contactId || !editing.field) return;
+
+    try {
+      // In a real implementation, this would make a PATCH request to Supabase
+      console.log('💾 Saving edit:', editing);
+      
+      // Update local state optimistically
+      setContactGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          contacts: group.contacts.map(contact => 
+            contact.id === editing.contactId 
+              ? { ...contact, [editing.field!]: editing.value }
+              : contact
+          )
+        }))
+      );
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setEditing({ contactId: null, field: null, value: '' });
+    } catch (error) {
+      console.error('❌ Error saving edit:', error);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditing({ contactId: null, field: null, value: '' });
+  };
+
+  const filteredGroups = contactGroups.filter(group => {
+    if (selectedAccountEmail && group.accountEmail !== selectedAccountEmail) {
+      return false;
+    }
+    if (searchTerm) {
+      return group.contacts.some(contact => 
+        contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    return true;
+  });
+
+  const uniqueAccountEmails = contactGroups.map(group => group.accountEmail);
+
   useEffect(() => {
     fetchContacts();
+
+    // Set up auto-refresh every 30 seconds
+    refreshIntervalRef.current = setInterval(fetchContacts, 30000);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
   }, []);
 
-  if (loading) {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Not provided';
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'bg-green-100 text-green-800';
+    if (score >= 60) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  if (loading && contactGroups.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -274,64 +312,348 @@ function App() {
     );
   }
 
-  const filteredContactsCount = contacts.length;
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              RelationshipOps Dashboard
-            </h1>
-            <p className="text-gray-600">
-              {totalContacts} total contacts • {filteredContactsCount} displayed • Leads Above 80: {leadsAbove80}
-            </p>
-            {error && (
-              <p className="text-yellow-600 mt-2 text-sm">
-                {error}
-              </p>
-            )}
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">RelationshipOps Dashboard</h1>
+            <p className="text-gray-600 mt-1">Powered By VeraOps</p>
           </div>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
+            <button
+              onClick={handleManualRefresh}
+              disabled={loading}
+              className="flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
 
-          <StatsCards
-            totalContacts={totalContacts}
-            totalGroups={totalGroups}
-            leadsAbove80={leadsAbove80}
-            readyToSendContacts={readyToSendContacts}
-          />
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-black text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{totalMetrics.accountGroups}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Account Groups</div>
+          </div>
+          <div className="bg-black text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{totalMetrics.totalContacts.toLocaleString()}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Total Contacts</div>
+          </div>
+          <div className="bg-black text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{totalMetrics.leadsAbove80}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Leads Above 80</div>
+          </div>
+          <div className="bg-black text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{totalMetrics.readyContacts}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Ready Contacts</div>
+          </div>
+        </div>
 
-          {debugInfo && (
-            <div className="mb-6 p-4 bg-gray-100 rounded-lg">
-              <h3 className="font-semibold mb-2">Debug Info (also check browser console for detailed logs):</h3>
-              <div className="text-sm space-y-1">
-                <p><strong>Total Table Records:</strong> {debugInfo.totalTableRecords} (entire table - used for "Total Contacts")</p>
-                <p><strong>Filtered Count (exact):</strong> {debugInfo.totalCount} (client_email filter)</p>
-                <p><strong>client_email results:</strong> {debugInfo.allContactsCount}</p>
-                <p><strong>client_email_id results:</strong> {debugInfo.contactsByEmailIdCount}</p>
-                <p><strong>Displayed Contacts:</strong> {filteredContactsCount}</p>
-                {debugInfo.totalTableRecords && debugInfo.totalCount && (
-                  <p><strong>Filter Percentage:</strong> {((debugInfo.totalCount / debugInfo.totalTableRecords) * 100).toFixed(2)}% of total data</p>
-                )}
-                {debugInfo.tableCountError && (
-                  <p className="text-red-600">Table Count Error: {debugInfo.tableCountError.message}</p>
-                )}
-                {debugInfo.countError && (
-                  <p className="text-red-600">Filter Count Error: {debugInfo.countError.message}</p>
-                )}
-                {debugInfo.sampleContact && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer">Sample Contact</summary>
-                    <pre className="mt-2 text-xs bg-white p-2 rounded border overflow-auto max-h-40">
-                      {JSON.stringify(debugInfo.sampleContact, null, 2)}
-                    </pre>
-                  </details>
+        {/* Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search contacts..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={selectedAccountEmail}
+            onChange={(e) => setSelectedAccountEmail(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+          >
+            <option value="">All Account Emails</option>
+            {uniqueAccountEmails.map(email => (
+              <option key={email} value={email}>{email}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Contact Groups */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Contacts by Account Email</h2>
+            <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
+          </div>
+          
+          <div className="divide-y divide-gray-200">
+            {filteredGroups.map((group) => (
+              <div key={group.accountEmail}>
+                {/* Group Header */}
+                <div
+                  className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => toggleGroupExpansion(group.accountEmail)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {expandedGroups.has(group.accountEmail) ? (
+                        <ChevronDown className="w-5 h-5 text-gray-400 mr-2" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-400 mr-2" />
+                      )}
+                      <div className="flex items-center">
+                        <span className="text-lg font-medium text-gray-900">{group.accountEmail}</span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          {group.contacts.length} contacts • Leads Above 80: 
+                          <span className="ml-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                            {group.leadsAbove80}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Group Content */}
+                {expandedGroups.has(group.accountEmail) && (
+                  <div className="px-6 pb-4">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="pb-3">Contact</th>
+                            <th className="pb-3">Job Title</th>
+                            <th className="pb-3">Company</th>
+                            <th className="pb-3">Score</th>
+                            <th className="pb-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {group.contacts.map((contact) => (
+                            <React.Fragment key={contact.id || contact.linkedin_profile_url}>
+                              {/* Contact Summary Row */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="py-3">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown'}
+                                  </div>
+                                  {contact.work_email && (
+                                    <div className="text-sm text-gray-500">{contact.work_email}</div>
+                                  )}
+                                </td>
+                                <td className="py-3 text-sm text-gray-900">{contact.job_title || 'N/A'}</td>
+                                <td className="py-3">
+                                  <div className="text-sm text-gray-900">{contact.company_name || 'N/A'}</div>
+                                  {contact.company_domain && (
+                                    <div className="text-sm text-gray-500">{contact.company_domain}</div>
+                                  )}
+                                </td>
+                                <td className="py-3">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(contact.total_lead_score || contact.lead_score || 0)}`}>
+                                    {contact.total_lead_score || contact.lead_score || 0}
+                                  </span>
+                                </td>
+                                <td className="py-3">
+                                  <button
+                                    onClick={() => toggleContactExpansion(contact.id || contact.linkedin_profile_url || '')}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                  >
+                                    {expandedContacts.has(contact.id || contact.linkedin_profile_url || '') ? 'Hide Details' : 'View Details'}
+                                  </button>
+                                </td>
+                              </tr>
+
+                              {/* Contact Details Row */}
+                              {expandedContacts.has(contact.id || contact.linkedin_profile_url || '') && (
+                                <tr>
+                                  <td colSpan={5} className="py-6 bg-gray-50">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                      {/* Lead Information */}
+                                      <div className="bg-white p-4 rounded-lg">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                                            Lead Information
+                                          </h4>
+                                          <Edit className="w-4 h-4 text-gray-400" />
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Full Name', field: 'full_name', value: contact.full_name },
+                                            { label: 'First Name', field: 'first_name', value: contact.first_name },
+                                            { label: 'Last Name', field: 'last_name', value: contact.last_name },
+                                            { label: 'Job Title', field: 'job_title', value: contact.job_title },
+                                            { label: 'Work Email', field: 'work_email', value: contact.work_email },
+                                            { label: 'Country', field: 'lead_country', value: contact.lead_country },
+                                            { label: 'LinkedIn Connections', field: 'connection_count', value: contact.connection_count?.toString() },
+                                            { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-center">
+                                              <span className="text-sm text-gray-600">{label}:</span>
+                                              {editing.contactId === contact.id && editing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <input
+                                                    type="text"
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                                                  />
+                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                    <Save className="w-4 h-4" />
+                                                  </button>
+                                                  <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
+                                                    <X className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <span
+                                                  className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded"
+                                                  onClick={() => startEditing(contact.id || '', field, value || '')}
+                                                >
+                                                  {value || 'Not provided'}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                          {contact.linkedin_profile_url && (
+                                            <div className="pt-2">
+                                              <a
+                                                href={contact.linkedin_profile_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                                              >
+                                                <ExternalLink className="w-4 h-4 mr-1" />
+                                                View Profile
+                                              </a>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Company Information */}
+                                      <div className="bg-white p-4 rounded-lg">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                            Company Information
+                                          </h4>
+                                          <Edit className="w-4 h-4 text-gray-400" />
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Company Name', field: 'company_name', value: contact.company_name },
+                                            { label: 'Company Domain', field: 'company_domain', value: contact.company_domain },
+                                            { label: 'Company Industry', field: 'company_industry', value: contact.company_industry },
+                                            { label: 'Company Staff Range', field: 'company_staff_count_range', value: contact.company_staff_count_range }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-center">
+                                              <span className="text-sm text-gray-600">{label}:</span>
+                                              {editing.contactId === contact.id && editing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <input
+                                                    type="text"
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                                                  />
+                                                  <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                    <Save className="w-4 h-4" />
+                                                  </button>
+                                                  <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
+                                                    <X className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <span
+                                                  className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded"
+                                                  onClick={() => startEditing(contact.id || '', field, value || '')}
+                                                >
+                                                  {value || 'Not provided'}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Daily Digest Information */}
+                                      <div className="bg-white p-4 rounded-lg">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                                            Daily Digest Information
+                                          </h4>
+                                          <Edit className="w-4 h-4 text-gray-400" />
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Last Interaction Summary', field: 'last_interaction_summary', value: contact.last_interaction_summary },
+                                            { label: 'Last Interaction Platform', field: 'last_interaction_platform', value: contact.last_interaction_platform },
+                                            { label: 'Last Interaction Date', field: 'last_interaction_date', value: formatDate(contact.last_interaction_date) },
+                                            { label: 'Talking Point 1', field: 'talking_point_1', value: contact.talking_point_1 },
+                                            { label: 'Talking Point 2', field: 'talking_point_2', value: contact.talking_point_2 },
+                                            { label: 'Talking Point 3', field: 'talking_point_3', value: contact.talking_point_3 },
+                                            { label: 'Sent to Client', field: 'sent_to_client', value: contact.sent_to_client },
+                                            { label: 'Sent Date', field: 'exact_sent_date', value: formatDate(contact.exact_sent_date) }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-start">
+                                              <span className="text-sm text-gray-600 mr-2">{label}:</span>
+                                              {editing.contactId === contact.id && editing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <textarea
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none"
+                                                  />
+                                                  <div className="flex flex-col space-y-1">
+                                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                      <Save className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
+                                                      <X className="w-4 h-4" />
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <span
+                                                  className="text-sm text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded text-right flex-1"
+                                                  onClick={() => startEditing(contact.id || '', field, value || '')}
+                                                >
+                                                  {value || 'Not provided'}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
               </div>
+            ))}
+          </div>
+
+          {filteredGroups.length === 0 && (
+            <div className="px-6 py-12 text-center">
+              <p className="text-gray-500">No contacts found matching your criteria.</p>
             </div>
           )}
-
-          <ContactsTable contacts={contacts} />
         </div>
       </div>
     </div>

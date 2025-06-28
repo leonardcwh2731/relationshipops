@@ -1,5 +1,6 @@
 export interface Contact {
-  linkedin_profile_url: string;
+  id?: string;
+  linkedin_profile_url?: string;
   full_name?: string;
   first_name?: string;
   last_name?: string;
@@ -40,4 +41,5 @@ export interface Contact {
   signals_lead_score?: number;
   company_id?: number;
   created_at?: string;
+  account_email?: string; // From joined onboarding_google_tokens table
 }
