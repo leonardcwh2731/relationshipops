@@ -1,49 +1,6 @@
 import React from 'react';
 import { ExternalLink, Mail, Building2, User, Calendar, Star } from 'lucide-react';
-
-interface Contact {
-  linkedin_profile_url: string;
-  full_name?: string;
-  first_name?: string;
-  last_name?: string;
-  company_name?: string;
-  company_domain?: string;
-  job_title?: string;
-  work_email?: string;
-  last_interaction_date?: string;
-  last_interaction_summary?: string;
-  lead_score?: number;
-  total_lead_score?: number;
-  sent_to_client?: string;
-  exact_sent_date?: string;
-  talking_point_1?: string;
-  talking_point_2?: string;
-  talking_point_3?: string;
-  client_email?: string;
-  client_email_id?: string;
-  client_full_name?: string;
-  client_first_name?: string;
-  client_last_name?: string;
-  last_interaction_platform?: string;
-  potential_value_add_link?: string;
-  potential_value_add_headline?: string;
-  linkedin_profile_urn?: string;
-  connection_count?: number;
-  followers_count?: number;
-  current_company_join_month?: number;
-  current_company_join_year?: number;
-  lead_country?: string;
-  company_industry?: string;
-  company_staff_count_range?: string;
-  total_thread_count?: number;
-  total_number_of_messages?: number;
-  total_trust_score?: number;
-  total_meeting_count?: number;
-  unique_platforms_count?: number;
-  signals_lead_score?: number;
-  company_id?: number;
-  created_at?: string;
-}
+import { Contact } from '../types/Contact';
 
 interface ContactsTableProps {
   contacts: Contact[];
