@@ -51,20 +51,20 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 pr-10 text-left bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 flex items-center justify-between"
+        className="w-full px-4 py-3 text-left bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 flex items-center justify-between"
       >
-        <div className="flex items-center">
+        <div className="flex items-center flex-1 pr-2">
           {selectedOption?.icon && (
-            <span className="mr-2 text-gray-500">
+            <span className="mr-2 text-gray-500 flex-shrink-0">
               {selectedOption.icon}
             </span>
           )}
-          <span className="text-lg font-medium text-gray-900">
+          <span className="text-sm font-medium text-gray-900 truncate">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
         </div>
         <ChevronDown 
-          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+          className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${
             isOpen ? 'rotate-180' : ''
           }`} 
         />
@@ -81,11 +81,11 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
                 className="w-full px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors duration-150 flex items-center group"
               >
                 {option.icon && (
-                  <span className="mr-3 text-gray-500 group-hover:text-gray-700 transition-colors duration-150">
+                  <span className="mr-3 text-gray-500 group-hover:text-gray-700 transition-colors duration-150 flex-shrink-0">
                     {option.icon}
                   </span>
                 )}
-                <span className="text-lg font-medium">{option.label}</span>
+                <span className="text-sm font-medium truncate">{option.label}</span>
               </button>
             ))}
           </div>
