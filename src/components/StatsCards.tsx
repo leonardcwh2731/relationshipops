@@ -35,7 +35,7 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
       textColor: 'text-white'
     },
     {
-      name: 'Ready Contacts',
+      name: 'Contacts',
       value: readyToSendContacts.toString(),
       icon: CheckCircle,
       color: 'bg-black',
