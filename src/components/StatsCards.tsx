@@ -11,7 +11,7 @@ interface StatsCardsProps {
 export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSendContacts }: StatsCardsProps) {
   const stats = [
     {
-      name: 'Groups',
+      name: 'Account Groups',
       value: totalGroups.toLocaleString(),
       icon: Building,
       color: 'bg-black',
@@ -19,7 +19,7 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
       textColor: 'text-white'
     },
     {
-      name: 'Contacts',
+      name: 'Total Contacts',
       value: totalContacts.toLocaleString(),
       icon: Users,
       color: 'bg-black',
@@ -27,7 +27,7 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
       textColor: 'text-white'
     },
     {
-      name: '80+ Leads',
+      name: 'Leads Above 80',
       value: leadsAbove80.toString(),
       icon: TrendingUp,
       color: 'bg-black',
@@ -35,7 +35,7 @@ export function StatsCards({ totalContacts, totalGroups, leadsAbove80, readyToSe
       textColor: 'text-white'
     },
     {
-      name: 'Ready',
+      name: 'Ready Contacts',
       value: readyToSendContacts.toString(),
       icon: CheckCircle,
       color: 'bg-black',
