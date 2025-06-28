@@ -220,7 +220,9 @@ function App() {
         setError('No contacts found');
       } else {
         setContacts(contactsData);
-        setTotalContacts(contactsData.length);
+        
+        // Set total contacts to the entire table count (SELECT COUNT(*) FROM table)
+        setTotalContacts(totalTableRecords || 0);
 
         const uniqueCompanies = new Set(
           contactsData.map((c) => c.company_domain || c.company_name)
@@ -239,7 +241,8 @@ function App() {
 
         // Log final statistics
         console.log('\n📊 === FINAL STATISTICS ===');
-        console.log(`👥 Total Contacts: ${contactsData.length}`);
+        console.log(`👥 Total Contacts (table count): ${totalTableRecords || 0}`);
+        console.log(`📋 Filtered Contacts (displayed): ${contactsData.length}`);
         console.log(`🏢 Unique Companies: ${uniqueCompanies}`);
         console.log(`🎯 Leads Above 80: ${above80}`);
         console.log(`✅ Ready to Send: ${ready}`);
@@ -284,6 +287,8 @@ function App() {
     );
   }
 
+  const filteredContactsCount = contacts.length;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -293,7 +298,7 @@ function App() {
               RelationshipOps Dashboard
             </h1>
             <p className="text-gray-600">
-              {totalContacts} contacts • Leads Above 80: {leadsAbove80}
+              {totalContacts} total contacts • {filteredContactsCount} displayed • Leads Above 80: {leadsAbove80}
             </p>
           </div>
 
@@ -308,10 +313,11 @@ function App() {
             <div className="mb-6 p-4 bg-gray-100 rounded-lg">
               <h3 className="font-semibold mb-2">Debug Info (also check browser console for detailed logs):</h3>
               <div className="text-sm space-y-1">
-                <p><strong>Total Table Records:</strong> {debugInfo.totalTableRecords} (entire table)</p>
+                <p><strong>Total Table Records:</strong> {debugInfo.totalTableRecords} (entire table - used for "Total Contacts")</p>
                 <p><strong>Filtered Count (exact):</strong> {debugInfo.totalCount} (client_email filter)</p>
                 <p><strong>client_email results:</strong> {debugInfo.allContactsCount}</p>
                 <p><strong>client_email_id results:</strong> {debugInfo.contactsByEmailIdCount}</p>
+                <p><strong>Displayed Contacts:</strong> {filteredContactsCount}</p>
                 {debugInfo.totalTableRecords && debugInfo.totalCount && (
                   <p><strong>Filter Percentage:</strong> {((debugInfo.totalCount / debugInfo.totalTableRecords) * 100).toFixed(2)}% of total data</p>
                 )}
