@@ -33,9 +33,33 @@ function App() {
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchTotalContactCount = async () => {
+    try {
+      console.log('🔢 Fetching total contact count...');
+
+      const { count, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) {
+        console.error('❌ Error fetching contact count:', error);
+        return 0;
+      }
+
+      console.log('✅ Total contacts found:', count);
+      return count || 0;
+    } catch (err) {
+      console.error('💥 Error in fetchTotalContactCount:', err);
+      return 0;
+    }
+  };
+
   const fetchContacts = async () => {
     try {
       console.log('🔄 Fetching contacts with account email grouping...');
+
+      // First, get the total count
+      const totalCount = await fetchTotalContactCount();
 
       // For demo purposes, we'll simulate the joined data since we don't have the actual onboarding_google_tokens table
       // In a real implementation, this would be a proper JOIN query
@@ -47,9 +71,9 @@ function App() {
 
       if (error) {
         console.error('❌ Error fetching contacts:', error);
-        // Use demo data for development
+        // Use demo data for development but with real total count
         const demoContacts = generateDemoData();
-        processContactData(demoContacts);
+        processContactData(demoContacts, totalCount);
         return;
       }
 
@@ -59,16 +83,17 @@ function App() {
           ...contact,
           account_email: contact.client_email || contact.client_email_id || 'unknown@domain.com'
         }));
-        processContactData(contactsWithAccountEmail);
+        processContactData(contactsWithAccountEmail, totalCount);
       } else {
-        // Use demo data if no contacts found
+        // Use demo data if no contacts found but with real total count
         const demoContacts = generateDemoData();
-        processContactData(demoContacts);
+        processContactData(demoContacts, totalCount);
       }
     } catch (err) {
       console.error('💥 Error in fetchContacts:', err);
       const demoContacts = generateDemoData();
-      processContactData(demoContacts);
+      const totalCount = await fetchTotalContactCount();
+      processContactData(demoContacts, totalCount);
     } finally {
       setLoading(false);
       setLastUpdated(new Date().toLocaleTimeString());
@@ -158,7 +183,7 @@ function App() {
     ];
   };
 
-  const processContactData = (contacts: any[]) => {
+  const processContactData = (contacts: any[], totalContactCount: number = 0) => {
     // Group contacts by account_email
     const groups: { [key: string]: Contact[] } = {};
     
@@ -186,10 +211,10 @@ function App() {
 
     setContactGroups(contactGroups);
 
-    // Calculate total metrics
+    // Calculate metrics using real total contact count
     const allContacts = contacts;
     setTotalMetrics({
-      totalContacts: allContacts.length,
+      totalContacts: totalContactCount > 0 ? totalContactCount : allContacts.length, // Use real count if available
       accountGroups: contactGroups.length,
       leadsAbove80: allContacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length,
       readyContacts: allContacts.filter(c => ['Yes', 'yes'].includes(c.sent_to_client || '')).length
