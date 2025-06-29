@@ -9,14 +9,7 @@ interface ContactGroup {
   leadsAbove80: number;
 }
 
-interface EditingState {
-  contactId: string | null;
-  field: string | null;
-  value: string;
-}
-
 interface Article {
-  article_link: string;
   client_full_name?: string;
   client_first_name?: string;
   client_last_name?: string;
@@ -24,6 +17,7 @@ interface Article {
   parent_site?: string;
   article_type?: string;
   article_headline?: string;
+  article_link: string;
   article_overview?: string;
   article_background_story?: string;
   article_problems_solved?: string;
@@ -33,24 +27,32 @@ interface Article {
 }
 
 interface ArticleGroup {
-  clientEmail: string;
+  accountEmail: string;
   articles: Article[];
+}
+
+interface EditingState {
+  contactId: string | null;
+  field: string | null;
+  value: string;
 }
 
 function App() {
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
   const [articleGroups, setArticleGroups] = useState<ArticleGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [articlesLoading, setArticlesLoading] = useState(true);
+  const [loadingArticles, setLoadingArticles] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [articleSearchTerm, setArticleSearchTerm] = useState('');
   const [selectedAccountEmail, setSelectedAccountEmail] = useState('');
+  const [selectedArticleAccountEmail, setSelectedArticleAccountEmail] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set());
   const [expandedArticleGroups, setExpandedArticleGroups] = useState<Set<string>>(new Set());
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<EditingState>({ contactId: null, field: null, value: '' });
-  const [editingArticle, setEditingArticle] = useState<EditingState>({ contactId: null, field: null, value: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [totalMetrics, setTotalMetrics] = useState({
     totalContacts: 0,
     accountGroups: 0,
@@ -59,9 +61,7 @@ function App() {
   });
   const [articleMetrics, setArticleMetrics] = useState({
     totalArticles: 0,
-    clientGroups: 0,
-    recentArticles: 0,
-    topSources: 0
+    articleGroups: 0
   });
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -138,9 +138,8 @@ function App() {
 
   const fetchArticles = async () => {
     try {
-      console.log('📚 Fetching articles...');
-      setArticlesLoading(true);
-
+      console.log('📰 Fetching articles...');
+      
       const { data: articles, error } = await supabase
         .from('potential_value_add')
         .select('*')
@@ -148,8 +147,9 @@ function App() {
 
       if (error) {
         console.error('❌ Error fetching articles:', error);
-        // Use demo data if there's an error
-        processArticleData(generateDemoArticles());
+        // Use demo data as fallback
+        const demoArticles = generateDemoArticles();
+        processArticleData(demoArticles);
         return;
       }
 
@@ -158,47 +158,52 @@ function App() {
         processArticleData(articles);
       } else {
         console.log('⚠️ No articles found, using demo data');
-        processArticleData(generateDemoArticles());
+        const demoArticles = generateDemoArticles();
+        processArticleData(demoArticles);
       }
     } catch (err) {
       console.error('💥 Error in fetchArticles:', err);
-      processArticleData(generateDemoArticles());
+      // Fallback to demo data
+      const demoArticles = generateDemoArticles();
+      processArticleData(demoArticles);
     } finally {
-      setArticlesLoading(false);
+      setLoadingArticles(false);
     }
   };
 
   const generateDemoArticles = (): Article[] => {
     return [
       {
-        article_link: 'https://example.com/article1',
-        client_full_name: 'John Doe',
+        client_full_name: 'John Smith',
         client_first_name: 'John',
-        client_last_name: 'Doe',
+        client_last_name: 'Smith',
         client_email_address: 'john@example.com',
         parent_site: 'TechCrunch',
-        article_type: 'News',
-        article_headline: 'AI Revolution in Marketing',
-        article_overview: 'How AI is transforming marketing strategies',
-        article_background_story: 'Companies are increasingly adopting AI...',
-        article_problems_solved: 'Automation, personalization, analytics',
-        article_short_summary: 'AI transforms marketing with automation',
-        created_at: '2025-01-15T10:00:00Z'
+        article_type: 'Funding News',
+        article_headline: 'AI Startup Raises $50M Series B',
+        article_link: 'https://techcrunch.com/ai-startup-series-b',
+        article_overview: 'Company secures major funding round for AI development',
+        article_background_story: 'Founded in 2020, the company has been developing AI solutions for enterprise customers',
+        article_problems_solved: 'Addresses data processing bottlenecks in large organizations',
+        article_short_summary: 'AI startup closes $50M funding round',
+        article_combined_headline: 'AI Innovation: Startup Secures $50M Series B for Enterprise Solutions',
+        created_at: '2025-01-15T10:30:00Z'
       },
       {
-        article_link: 'https://example.com/article2',
-        client_full_name: 'Jane Smith',
-        client_first_name: 'Jane',
-        client_last_name: 'Smith',
-        client_email_address: 'jane@example.com',
+        client_full_name: 'Sarah Johnson',
+        client_first_name: 'Sarah',
+        client_last_name: 'Johnson',
+        client_email_address: 'sarah@techcorp.com',
         parent_site: 'Forbes',
-        article_type: 'Analysis',
-        article_headline: 'Future of Remote Work',
-        article_overview: 'Remote work trends and predictions',
-        article_background_story: 'The pandemic changed work patterns...',
-        article_problems_solved: 'Flexibility, productivity, work-life balance',
-        article_short_summary: 'Remote work is here to stay',
-        created_at: '2025-01-14T15:30:00Z'
+        article_type: 'Industry Analysis',
+        article_headline: 'The Future of Remote Work Technology',
+        article_link: 'https://forbes.com/remote-work-technology',
+        article_overview: 'Analysis of emerging technologies reshaping remote work',
+        article_background_story: 'Post-pandemic shift has accelerated adoption of remote collaboration tools',
+        article_problems_solved: 'Improves productivity and communication for distributed teams',
+        article_short_summary: 'Remote work tech trends analysis',
+        article_combined_headline: 'Remote Revolution: How Technology is Transforming Distributed Work',
+        created_at: '2025-01-14T15:45:00Z'
       }
     ];
   };
@@ -210,69 +215,39 @@ function App() {
     const groups: { [key: string]: Article[] } = {};
     
     articles.forEach(article => {
-      const clientEmail = article.client_email_address || 'unknown@domain.com';
-      if (!groups[clientEmail]) {
-        groups[clientEmail] = [];
+      const accountEmail = article.client_email_address || 'unknown@domain.com';
+      if (!groups[accountEmail]) {
+        groups[accountEmail] = [];
       }
-      groups[clientEmail].push(article);
+      groups[accountEmail].push(article);
     });
 
     // Create article groups
-    const articleGroups: ArticleGroup[] = Object.entries(groups).map(([clientEmail, articles]) => ({
-      clientEmail,
+    const articleGroups: ArticleGroup[] = Object.entries(groups).map(([accountEmail, articles]) => ({
+      accountEmail,
       articles: articles.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
     }));
 
-    // Sort groups by most recent article
-    articleGroups.sort((a, b) => {
-      const aLatest = new Date(a.articles[0]?.created_at || '').getTime();
-      const bLatest = new Date(b.articles[0]?.created_at || '').getTime();
-      return bLatest - aLatest;
-    });
+    // Sort groups by number of articles
+    articleGroups.sort((a, b) => b.articles.length - a.articles.length);
 
     console.log(`📈 Created ${articleGroups.length} article groups`);
+    articleGroups.forEach(group => {
+      console.log(`  📧 ${group.accountEmail}: ${group.articles.length} articles`);
+    });
+
     setArticleGroups(articleGroups);
 
-    // Calculate metrics
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const recentArticles = articles.filter(a => new Date(a.created_at || '') > oneWeekAgo).length;
-    const uniqueSources = new Set(articles.map(a => a.parent_site).filter(Boolean)).size;
-
+    // Calculate article metrics
     setArticleMetrics({
       totalArticles: articles.length,
-      clientGroups: articleGroups.length,
-      recentArticles,
-      topSources: uniqueSources
+      articleGroups: articleGroups.length
     });
-  };
 
-  const deleteArticle = async (articleLink: string) => {
-    try {
-      console.log('🗑️ Deleting article:', articleLink);
-      
-      const { error } = await supabase
-        .from('potential_value_add')
-        .delete()
-        .eq('article_link', articleLink);
-
-      if (error) {
-        console.error('❌ Error deleting article:', error);
-        return;
-      }
-
-      // Update local state
-      setArticleGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          articles: group.articles.filter(article => article.article_link !== articleLink)
-        })).filter(group => group.articles.length > 0)
-      );
-
-      console.log('✅ Article deleted successfully');
-    } catch (error) {
-      console.error('❌ Error deleting article:', error);
-    }
+    console.log(`✅ Article metrics calculated:`, {
+      totalArticles: articles.length,
+      articleGroups: articleGroups.length
+    });
   };
 
   const fetchContacts = async () => {
@@ -452,7 +427,7 @@ function App() {
 
   const handleManualRefresh = () => {
     setLoading(true);
-    setArticlesLoading(true);
+    setLoadingArticles(true);
     fetchContacts();
     fetchArticles();
   };
@@ -477,12 +452,12 @@ function App() {
     setExpandedContacts(newExpanded);
   };
 
-  const toggleArticleGroupExpansion = (clientEmail: string) => {
+  const toggleArticleGroupExpansion = (accountEmail: string) => {
     const newExpanded = new Set(expandedArticleGroups);
-    if (newExpanded.has(clientEmail)) {
-      newExpanded.delete(clientEmail);
+    if (newExpanded.has(accountEmail)) {
+      newExpanded.delete(accountEmail);
     } else {
-      newExpanded.add(clientEmail);
+      newExpanded.add(accountEmail);
     }
     setExpandedArticleGroups(newExpanded);
   };
@@ -501,79 +476,62 @@ function App() {
     setEditing({ contactId, field, value: currentValue || '' });
   };
 
-  const startEditingArticle = (articleLink: string, field: string, currentValue: string) => {
-    setEditingArticle({ contactId: articleLink, field, value: currentValue || '' });
-  };
-
   const saveEdit = async () => {
     if (!editing.contactId || !editing.field) return;
 
     try {
       console.log('💾 Saving edit:', editing);
       
+      // Determine which table to update based on the field and context
+      let tableName = 'icp_contacts_tracking_in_progress';
+      let idField = 'linkedin_profile_url';
+      
+      // Check if this is an article edit
+      if (editing.field.includes('article_') || editing.field.includes('client_') || editing.field === 'parent_site') {
+        tableName = 'potential_value_add';
+        idField = 'article_link';
+      }
+
       // Update Supabase
       const { error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
+        .from(tableName)
         .update({ [editing.field]: editing.value })
-        .eq('linkedin_profile_url', editing.contactId);
+        .eq(idField, editing.contactId);
 
       if (error) {
-        console.error('❌ Error updating contact:', error);
+        console.error('❌ Error updating record:', error);
         return;
       }
 
       // Update local state optimistically
-      setContactGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          contacts: group.contacts.map(contact => 
-            (contact.linkedin_profile_url === editing.contactId || contact.id === editing.contactId)
-              ? { ...contact, [editing.field!]: editing.value }
-              : contact
-          )
-        }))
-      );
+      if (tableName === 'potential_value_add') {
+        setArticleGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            articles: group.articles.map(article => 
+              article.article_link === editing.contactId
+                ? { ...article, [editing.field!]: editing.value }
+                : article
+            )
+          }))
+        );
+      } else {
+        setContactGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            contacts: group.contacts.map(contact => 
+              (contact.linkedin_profile_url === editing.contactId || contact.id === editing.contactId)
+                ? { ...contact, [editing.field!]: editing.value }
+                : contact
+            )
+          }))
+        );
+      }
 
       setEditing({ contactId: null, field: null, value: '' });
-      console.log('✅ Contact updated successfully');
+      console.log('✅ Record updated successfully');
     } catch (error) {
       console.error('❌ Error saving edit:', error);
-    }
-  };
-
-  const saveArticleEdit = async () => {
-    if (!editingArticle.contactId || !editingArticle.field) return;
-
-    try {
-      console.log('💾 Saving article edit:', editingArticle);
-      
-      // Update Supabase
-      const { error } = await supabase
-        .from('potential_value_add')
-        .update({ [editingArticle.field]: editingArticle.value })
-        .eq('article_link', editingArticle.contactId);
-
-      if (error) {
-        console.error('❌ Error updating article:', error);
-        return;
-      }
-
-      // Update local state optimistically
-      setArticleGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          articles: group.articles.map(article => 
-            article.article_link === editingArticle.contactId
-              ? { ...article, [editingArticle.field!]: editingArticle.value }
-              : article
-          )
-        }))
-      );
-
-      setEditingArticle({ contactId: null, field: null, value: '' });
-      console.log('✅ Article updated successfully');
-    } catch (error) {
-      console.error('❌ Error saving article edit:', error);
     }
   };
 
@@ -581,8 +539,40 @@ function App() {
     setEditing({ contactId: null, field: null, value: '' });
   };
 
-  const cancelArticleEdit = () => {
-    setEditingArticle({ contactId: null, field: null, value: '' });
+  const deleteArticle = async (articleLink: string) => {
+    try {
+      console.log('🗑️ Deleting article:', articleLink);
+      
+      const { error } = await supabase
+        .from('potential_value_add')
+        .delete()
+        .eq('article_link', articleLink);
+
+      if (error) {
+        console.error('❌ Error deleting article:', error);
+        return;
+      }
+
+      // Update local state
+      setArticleGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          articles: group.articles.filter(article => article.article_link !== articleLink)
+        })).filter(group => group.articles.length > 0)
+      );
+
+      // Update metrics
+      const totalArticles = articleGroups.reduce((sum, group) => sum + group.articles.length, 0) - 1;
+      setArticleMetrics(prev => ({
+        ...prev,
+        totalArticles
+      }));
+
+      setDeleteConfirm(null);
+      console.log('✅ Article deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting article:', error);
+    }
   };
 
   const filteredGroups = contactGroups.filter(group => {
@@ -599,7 +589,22 @@ function App() {
     return true;
   });
 
+  const filteredArticleGroups = articleGroups.filter(group => {
+    if (selectedArticleAccountEmail && group.accountEmail !== selectedArticleAccountEmail) {
+      return false;
+    }
+    if (articleSearchTerm) {
+      return group.articles.some(article => 
+        article.article_headline?.toLowerCase().includes(articleSearchTerm.toLowerCase()) ||
+        article.article_type?.toLowerCase().includes(articleSearchTerm.toLowerCase()) ||
+        article.parent_site?.toLowerCase().includes(articleSearchTerm.toLowerCase())
+      );
+    }
+    return true;
+  });
+
   const uniqueAccountEmails = contactGroups.map(group => group.accountEmail);
+  const uniqueArticleAccountEmails = articleGroups.map(group => group.accountEmail);
 
   useEffect(() => {
     fetchContacts();
@@ -663,16 +668,16 @@ function App() {
             <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
             <button
               onClick={handleManualRefresh}
-              disabled={loading || articlesLoading}
+              disabled={loading || loadingArticles}
               className="flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || articlesLoading) ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || loadingArticles) ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
         </div>
 
-        {/* Dormant Contacts Header */}
+        {/* Dormant Contacts Section Header */}
         <div className="mb-4">
           <h2 className="text-2xl font-bold text-gray-900">Dormant Contacts</h2>
         </div>
@@ -853,7 +858,7 @@ function App() {
                                             { label: 'LinkedIn Connections', field: 'connection_count', value: contact.connection_count?.toString() },
                                             { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center group">
+                                            <div key={field} className="flex justify-between items-center">
                                               <span className="text-sm text-gray-600">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -861,7 +866,7 @@ function App() {
                                                     type="text"
                                                     value={editing.value}
                                                     onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32 text-right"
                                                   />
                                                   <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                     <Save className="w-4 h-4" />
@@ -925,7 +930,7 @@ function App() {
                                             { label: 'Company Industry', field: 'company_industry', value: contact.company_industry },
                                             { label: 'Company Staff Range', field: 'company_staff_count_range', value: contact.company_staff_count_range }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center group">
+                                            <div key={field} className="flex justify-between items-center">
                                               <span className="text-sm text-gray-600">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -933,7 +938,7 @@ function App() {
                                                     type="text"
                                                     value={editing.value}
                                                     onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32 text-right"
                                                   />
                                                   <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                     <Save className="w-4 h-4" />
@@ -1010,7 +1015,7 @@ function App() {
                                                   <textarea
                                                     value={editing.value}
                                                     onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none"
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none text-right"
                                                   />
                                                   <div className="flex flex-col space-y-1">
                                                     <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
@@ -1060,7 +1065,7 @@ function App() {
           )}
         </div>
 
-        {/* Potential Value Add Header */}
+        {/* Potential Value Add Section Header */}
         <div className="mb-4">
           <h2 className="text-2xl font-bold text-gray-900">Potential Value Add</h2>
         </div>
@@ -1069,256 +1074,308 @@ function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-black text-white rounded-lg p-6">
             <div className="flex items-center">
-              <div className="text-2xl font-bold">{articleMetrics.clientGroups}</div>
-            </div>
-            <div className="text-sm opacity-80 mt-1">Client Groups</div>
-          </div>
-          <div className="bg-black text-white rounded-lg p-6">
-            <div className="flex items-center">
               <div className="text-2xl font-bold">{articleMetrics.totalArticles}</div>
             </div>
             <div className="text-sm opacity-80 mt-1">Total Articles</div>
           </div>
           <div className="bg-black text-white rounded-lg p-6">
             <div className="flex items-center">
-              <div className="text-2xl font-bold">{articleMetrics.recentArticles}</div>
+              <div className="text-2xl font-bold">{articleMetrics.articleGroups}</div>
             </div>
-            <div className="text-sm opacity-80 mt-1">Recent Articles</div>
-          </div>
-          <div className="bg-black text-white rounded-lg p-6">
-            <div className="flex items-center">
-              <div className="text-2xl font-bold">{articleMetrics.topSources}</div>
-            </div>
-            <div className="text-sm opacity-80 mt-1">Top Sources</div>
+            <div className="text-sm opacity-80 mt-1">Article Groups</div>
           </div>
         </div>
 
-        {/* Articles Section */}
+        {/* Article Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search articles..."
+              value={articleSearchTerm}
+              onChange={(e) => setArticleSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={selectedArticleAccountEmail}
+            onChange={(e) => setSelectedArticleAccountEmail(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+          >
+            <option value="">All Account Emails</option>
+            {uniqueArticleAccountEmails.map(email => (
+              <option key={email} value={email}>{email}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Article Groups */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Articles by Client Email</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Articles by Account Email</h2>
             <p className="text-sm text-gray-500">Sorted by creation date (newest first) • Auto-refreshes every 30 seconds</p>
           </div>
           
           <div className="divide-y divide-gray-200">
-            {articlesLoading && articleGroups.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-500">Loading articles...</p>
-              </div>
-            ) : (
-              articleGroups.map((group) => (
-                <div key={group.clientEmail}>
-                  {/* Group Header */}
-                  <div
-                    className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => toggleArticleGroupExpansion(group.clientEmail)}
-                  >
-                    <div className="flex items-center justify-between">
+            {filteredArticleGroups.map((group) => (
+              <div key={group.accountEmail}>
+                {/* Group Header */}
+                <div
+                  className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => toggleArticleGroupExpansion(group.accountEmail)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {expandedArticleGroups.has(group.accountEmail) ? (
+                        <ChevronDown className="w-5 h-5 text-gray-400 mr-2" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-400 mr-2" />
+                      )}
                       <div className="flex items-center">
-                        {expandedArticleGroups.has(group.clientEmail) ? (
-                          <ChevronDown className="w-5 h-5 text-gray-400 mr-2" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-gray-400 mr-2" />
-                        )}
-                        <div className="flex items-center">
-                          <span className="text-lg font-medium text-gray-900">{group.clientEmail}</span>
-                          <span className="ml-2 text-sm text-gray-500">
-                            {group.articles.length} articles
-                          </span>
-                        </div>
+                        <span className="text-lg font-medium text-gray-900">{group.accountEmail}</span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          {group.articles.length} articles
+                        </span>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Group Content */}
-                  {expandedArticleGroups.has(group.clientEmail) && (
-                    <div className="px-6 pb-4">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full">
-                          <thead>
-                            <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <th className="pb-3 pr-8">Article</th>
-                              <th className="pb-3 pr-8">Type</th>
-                              <th className="pb-3 pr-8">Source</th>
-                              <th className="pb-3 pr-8">Created</th>
-                              <th className="pb-3">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {group.articles.map((article) => (
-                              <React.Fragment key={article.article_link}>
-                                {/* Article Summary Row */}
-                                <tr className="hover:bg-gray-50">
-                                  <td className="py-3 pr-8">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {article.article_headline || 'Untitled Article'}
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                      {article.article_short_summary || 'No summary available'}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(article.article_type)}</td>
-                                  <td className="py-3 pr-8">
-                                    <div className="text-sm text-gray-900">{formatFieldValue(article.article_link)}</div>
-                                  </td>
-                                  <td className="py-3 pr-8 text-sm text-gray-900">{formatDate(article.created_at)}</td>
-                                  <td className="py-3">
-                                    <div className="flex items-center space-x-4">
+                {/* Group Content */}
+                {expandedArticleGroups.has(group.accountEmail) && (
+                  <div className="px-6 pb-4">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="pb-3 pr-8">Article</th>
+                            <th className="pb-3 pr-8">Type</th>
+                            <th className="pb-3 pr-8">Source</th>
+                            <th className="pb-3 pr-8">Created</th>
+                            <th className="pb-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {group.articles.map((article) => (
+                            <React.Fragment key={article.article_link}>
+                              {/* Article Summary Row */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="py-3 pr-8">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {formatFieldValue(article.article_headline)}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    <a 
+                                      href={article.article_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      View Article
+                                    </a>
+                                  </div>
+                                </td>
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(article.article_type)}</td>
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(article.article_link)}</td>
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatDate(article.created_at)}</td>
+                                <td className="py-3">
+                                  <div className="flex items-center space-x-4">
+                                    <button
+                                      onClick={() => toggleArticleExpansion(article.article_link)}
+                                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    >
+                                      {expandedArticles.has(article.article_link) ? 'Hide Details' : 'View Details'}
+                                    </button>
+                                    {deleteConfirm === article.article_link ? (
+                                      <div className="flex items-center space-x-2">
+                                        <button
+                                          onClick={() => deleteArticle(article.article_link)}
+                                          className="text-red-600 hover:text-red-800 text-xs"
+                                        >
+                                          Confirm
+                                        </button>
+                                        <button
+                                          onClick={() => setDeleteConfirm(null)}
+                                          className="text-gray-600 hover:text-gray-800 text-xs"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
                                       <button
-                                        onClick={() => toggleArticleExpansion(article.article_link)}
-                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                      >
-                                        {expandedArticles.has(article.article_link) ? 'Hide Details' : 'View Details'}
-                                      </button>
-                                      <button
-                                        onClick={() => deleteArticle(article.article_link)}
+                                        onClick={() => setDeleteConfirm(article.article_link)}
                                         className="text-red-600 hover:text-red-800"
-                                        title="Delete Article"
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
-                                    </div>
-                                  </td>
-                                </tr>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
 
-                                {/* Article Details Row */}
-                                {expandedArticles.has(article.article_link) && (
-                                  <tr>
-                                    <td colSpan={5} className="py-6 bg-gray-50">
-                                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                        {/* Article Details */}
-                                        <div className="bg-white p-4 rounded-lg">
-                                          <div className="flex items-center justify-between mb-4">
-                                            <h4 className="text-sm font-semibold text-gray-900 flex items-center">
-                                              <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                                              Article Details
-                                            </h4>
-                                          </div>
-                                          <div className="space-y-3">
-                                            {[
-                                              { label: 'Headline', field: 'article_headline', value: article.article_headline },
-                                              { label: 'Type', field: 'article_type', value: article.article_type },
-                                              { label: 'Parent Site', field: 'parent_site', value: article.parent_site },
-                                              { label: 'Link', field: 'article_link', value: article.article_link },
-                                              { label: 'Created At', field: 'created_at', value: formatDate(article.created_at) }
-                                            ].map(({ label, field, value }) => (
-                                              <div key={field} className="flex justify-between items-center group">
-                                                <span className="text-sm text-gray-600">{label}:</span>
-                                                {editingArticle.contactId === article.article_link && editingArticle.field === field ? (
-                                                  <div className="flex items-center space-x-2">
-                                                    <input
-                                                      type="text"
-                                                      value={editingArticle.value}
-                                                      onChange={(e) => setEditingArticle(prev => ({ ...prev, value: e.target.value }))}
-                                                      className="text-sm border border-gray-300 rounded px-2 py-1 w-48 text-left"
-                                                    />
-                                                    <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
+                              {/* Article Details Row */}
+                              {expandedArticles.has(article.article_link) && (
+                                <tr>
+                                  <td colSpan={5} className="py-6 bg-gray-50">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                      {/* Article Details */}
+                                      <div className="bg-white p-4 rounded-lg">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                                            Article Details
+                                          </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Headline', field: 'article_headline', value: article.article_headline },
+                                            { label: 'Type', field: 'article_type', value: article.article_type },
+                                            { label: 'Parent Site', field: 'parent_site', value: article.parent_site },
+                                            { label: 'Link', field: 'article_link', value: article.article_link },
+                                            { label: 'Overview', field: 'article_overview', value: article.article_overview },
+                                            { label: 'Background Story', field: 'article_background_story', value: article.article_background_story },
+                                            { label: 'Problems Solved', field: 'article_problems_solved', value: article.article_problems_solved },
+                                            { label: 'Short Summary', field: 'article_short_summary', value: article.article_short_summary }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-start group">
+                                              <span className="text-sm text-gray-600 mr-2">{label}:</span>
+                                              {editing.contactId === article.article_link && editing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <textarea
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-64 h-20 resize-none"
+                                                  />
+                                                  <div className="flex flex-col space-y-1">
+                                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                       <Save className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
+                                                    <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
                                                       <X className="w-4 h-4" />
                                                     </button>
                                                   </div>
-                                                ) : (
-                                                  <div className="flex items-center space-x-2">
-                                                    <span className="text-sm text-gray-900 text-left">
-                                                      {field === 'article_link' && value ? (
-                                                        <a 
-                                                          href={value}
-                                                          target="_blank"
-                                                          rel="noopener noreferrer"
-                                                          className="text-blue-600 hover:text-blue-800 hover:underline"
-                                                        >
-                                                          {formatFieldValue(value)}
-                                                        </a>
-                                                      ) : (
-                                                        formatFieldValue(value)
-                                                      )}
-                                                    </span>
-                                                    <button
-                                                      onClick={() => startEditingArticle(article.article_link, field, value || '')}
-                                                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    >
-                                                      <Edit className="w-4 h-4" />
-                                                    </button>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-
-                                        {/* Article Content */}
-                                        <div className="bg-white p-4 rounded-lg">
-                                          <div className="flex items-center justify-between mb-4">
-                                            <h4 className="text-sm font-semibold text-gray-900 flex items-center">
-                                              <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                                              Article Content
-                                            </h4>
-                                          </div>
-                                          <div className="space-y-3">
-                                            {[
-                                              { label: 'Overview', field: 'article_overview', value: article.article_overview },
-                                              { label: 'Background Story', field: 'article_background_story', value: article.article_background_story },
-                                              { label: 'Problems Solved', field: 'article_problems_solved', value: article.article_problems_solved },
-                                              { label: 'Short Summary', field: 'article_short_summary', value: article.article_short_summary },
-                                              { label: 'Combined Headline', field: 'article_combined_headline', value: article.article_combined_headline }
-                                            ].map(({ label, field, value }) => (
-                                              <div key={field} className="flex justify-between items-start group">
-                                                <span className="text-sm text-gray-600 mr-2">{label}:</span>
-                                                {editingArticle.contactId === article.article_link && editingArticle.field === field ? (
-                                                  <div className="flex items-center space-x-2">
-                                                    <textarea
-                                                      value={editingArticle.value}
-                                                      onChange={(e) => setEditingArticle(prev => ({ ...prev, value: e.target.value }))}
-                                                      className="text-sm border border-gray-300 rounded px-2 py-1 w-48 h-16 resize-none text-left"
-                                                    />
-                                                    <div className="flex flex-col space-y-1">
-                                                      <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
-                                                        <Save className="w-4 h-4" />
-                                                      </button>
-                                                      <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
-                                                        <X className="w-4 h-4" />
-                                                      </button>
-                                                    </div>
-                                                  </div>
-                                                ) : (
-                                                  <div className="flex items-start space-x-2 flex-1">
-                                                    <span className="text-sm text-gray-900 text-left flex-1">
-                                                      {formatFieldValue(value)}
-                                                    </span>
-                                                    <button
-                                                      onClick={() => startEditingArticle(article.article_link, field, value || '')}
-                                                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
-                                                    >
-                                                      <Edit className="w-4 h-4" />
-                                                    </button>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            ))}
-                                          </div>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-start space-x-2 flex-1">
+                                                  <span className="text-sm text-gray-900 text-left flex-1">
+                                                    {field === 'article_link' && value ? (
+                                                      <a 
+                                                        href={value}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline break-all"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      <span className="break-words">{formatFieldValue(value)}</span>
+                                                    )}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startEditing(article.article_link, field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 flex-shrink-0"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                          {article.article_link && (
+                                            <div className="pt-2">
+                                              <a
+                                                href={article.article_link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                                              >
+                                                <ExternalLink className="w-4 h-4 mr-1" />
+                                                View Article
+                                              </a>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
-                                    </td>
-                                  </tr>
-                                )}
-                              </React.Fragment>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+
+                                      {/* Article Content */}
+                                      <div className="bg-white p-4 rounded-lg">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                            Article Content
+                                          </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Combined Headline', field: 'article_combined_headline', value: article.article_combined_headline },
+                                            { label: 'Client Full Name', field: 'client_full_name', value: article.client_full_name },
+                                            { label: 'Client First Name', field: 'client_first_name', value: article.client_first_name },
+                                            { label: 'Client Last Name', field: 'client_last_name', value: article.client_last_name },
+                                            { label: 'Client Email', field: 'client_email_address', value: article.client_email_address }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-start group">
+                                              <span className="text-sm text-gray-600 mr-2">{label}:</span>
+                                              {editing.contactId === article.article_link && editing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <textarea
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-64 h-16 resize-none"
+                                                  />
+                                                  <div className="flex flex-col space-y-1">
+                                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
+                                                      <Save className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
+                                                      <X className="w-4 h-4" />
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-start space-x-2 flex-1">
+                                                  <span className="text-sm text-gray-900 text-left flex-1">
+                                                    {field === 'client_email_address' && value ? (
+                                                      <a 
+                                                        href={`mailto:${value}`}
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline break-all"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      <span className="break-words">{formatFieldValue(value)}</span>
+                                                    )}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startEditing(article.article_link, field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 flex-shrink-0"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
-              ))
-            )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
-          {!articlesLoading && articleGroups.length === 0 && (
+          {filteredArticleGroups.length === 0 && (
             <div className="px-6 py-12 text-center">
-              <p className="text-gray-500">No articles found.</p>
+              <p className="text-gray-500">No articles found matching your criteria.</p>
             </div>
           )}
         </div>
