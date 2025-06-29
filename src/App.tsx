@@ -649,7 +649,7 @@ function App() {
                                                     type="text"
                                                     value={editing.value}
                                                     onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32 text-right"
                                                   />
                                                   <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                     <Save className="w-4 h-4" />
@@ -660,7 +660,7 @@ function App() {
                                                 </div>
                                               ) : (
                                                 <div className="flex items-center space-x-2">
-                                                  <span className="text-sm text-gray-900">
+                                                  <span className="text-sm text-gray-900 text-right">
                                                     {field === 'work_email' && value && value !== '-' ? (
                                                       <a 
                                                         href={`mailto:${value}`}
@@ -683,7 +683,7 @@ function App() {
                                             </div>
                                           ))}
                                           {contact.linkedin_profile_url && (
-                                            <div className="pt-2">
+                                            <div className="pt-2 text-right">
                                               <a
                                                 href={contact.linkedin_profile_url}
                                                 target="_blank"
@@ -721,7 +721,7 @@ function App() {
                                                     type="text"
                                                     value={editing.value}
                                                     onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32 text-right"
                                                   />
                                                   <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                     <Save className="w-4 h-4" />
@@ -732,7 +732,7 @@ function App() {
                                                 </div>
                                               ) : (
                                                 <div className="flex items-center space-x-2">
-                                                  <span className="text-sm text-gray-900">
+                                                  <span className="text-sm text-gray-900 text-right">
                                                     {field === 'company_domain' && value && value !== '-' ? (
                                                       <a 
                                                         href={`https://${value}`}
@@ -757,7 +757,7 @@ function App() {
                                             </div>
                                           ))}
                                           {contact.company_linkedin_url && (
-                                            <div className="pt-2">
+                                            <div className="pt-2 text-right">
                                               <a
                                                 href={contact.company_linkedin_url}
                                                 target="_blank"
@@ -799,7 +799,7 @@ function App() {
                                                   <textarea
                                                     value={editing.value}
                                                     onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none"
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none text-right"
                                                   />
                                                   <div className="flex flex-col space-y-1">
                                                     <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
