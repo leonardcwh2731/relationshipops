@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink, Mail, User, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink, Trash2 } from 'lucide-react';
 import { Contact } from './types/Contact';
 import { supabase } from './lib/supabase';
-import { CustomDropdown } from './components/CustomDropdown';
 
 interface ContactGroup {
   accountEmail: string;
@@ -30,7 +29,6 @@ interface Article {
 interface ArticleGroup {
   accountEmail: string;
   articles: Article[];
-  totalArticles: number;
 }
 
 interface EditingState {
@@ -43,7 +41,7 @@ function App() {
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
   const [articleGroups, setArticleGroups] = useState<ArticleGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [articlesLoading, setArticlesLoading] = useState(false);
+  const [loadingArticles, setLoadingArticles] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [articleSearchTerm, setArticleSearchTerm] = useState('');
@@ -54,7 +52,7 @@ function App() {
   const [expandedArticleGroups, setExpandedArticleGroups] = useState<Set<string>>(new Set());
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<EditingState>({ contactId: null, field: null, value: '' });
-  const [articleEditing, setArticleEditing] = useState<EditingState>({ contactId: null, field: null, value: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [totalMetrics, setTotalMetrics] = useState({
     totalContacts: 0,
     accountGroups: 0,
@@ -87,137 +85,6 @@ function App() {
       console.error('💥 Error in fetchTotalContactCount:', err);
       return 0;
     }
-  };
-
-  const fetchArticles = async () => {
-    try {
-      setArticlesLoading(true);
-      console.log('📰 Fetching articles from potential_value_add...');
-
-      const { data: articles, error } = await supabase
-        .from('potential_value_add')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Error fetching articles:', error);
-        // Use demo data on error
-        const demoArticles = generateDemoArticles();
-        processArticleData(demoArticles);
-        return;
-      }
-
-      if (articles && articles.length > 0) {
-        console.log(`✅ Fetched ${articles.length} articles`);
-        processArticleData(articles);
-      } else {
-        console.log('⚠️ No articles found, using demo data');
-        const demoArticles = generateDemoArticles();
-        processArticleData(demoArticles);
-      }
-    } catch (err) {
-      console.error('💥 Error in fetchArticles:', err);
-      const demoArticles = generateDemoArticles();
-      processArticleData(demoArticles);
-    } finally {
-      setArticlesLoading(false);
-    }
-  };
-
-  const generateDemoArticles = (): Article[] => {
-    return [
-      {
-        article_link: 'https://example.com/article1',
-        client_email_address: 'leonard@ontenlabs.com',
-        client_full_name: 'Leonard Chen',
-        client_first_name: 'Leonard',
-        client_last_name: 'Chen',
-        parent_site: 'TechCrunch',
-        article_type: 'Industry News',
-        article_headline: 'AI Revolution in Sales Automation',
-        article_overview: 'The latest trends in AI-powered sales automation tools',
-        article_background_story: 'Companies are increasingly adopting AI to streamline sales processes',
-        article_problems_solved: 'Reduces manual work and improves lead qualification',
-        article_short_summary: 'AI tools are transforming sales workflows',
-        article_combined_headline: 'AI Revolution: How Sales Teams Are Embracing Automation',
-        created_at: '2025-01-15T10:30:00Z'
-      },
-      {
-        article_link: 'https://example.com/article2',
-        client_email_address: 'peter.kang@barrelny.com',
-        client_full_name: 'Peter Kang',
-        client_first_name: 'Peter',
-        client_last_name: 'Kang',
-        parent_site: 'Forbes',
-        article_type: 'Case Study',
-        article_headline: 'Marketing ROI Optimization Strategies',
-        article_overview: 'How companies are maximizing their marketing investments',
-        article_background_story: 'Marketing budgets are under scrutiny for ROI',
-        article_problems_solved: 'Provides data-driven approaches to marketing spend',
-        article_short_summary: 'Proven strategies for better marketing ROI',
-        article_combined_headline: 'ROI Optimization: Data-Driven Marketing Strategies That Work',
-        created_at: '2025-01-14T14:20:00Z'
-      },
-      {
-        article_link: 'https://example.com/article3',
-        client_email_address: 'peter.kang@barrelny.com',
-        client_full_name: 'Peter Kang',
-        client_first_name: 'Peter',
-        client_last_name: 'Kang',
-        parent_site: 'Harvard Business Review',
-        article_type: 'Research',
-        article_headline: 'Future of B2B Customer Engagement',
-        article_overview: 'Research on evolving B2B customer expectations',
-        article_background_story: 'B2B buyers are demanding more personalized experiences',
-        article_problems_solved: 'Helps understand changing buyer behavior',
-        article_short_summary: 'B2B engagement is becoming more consumer-like',
-        article_combined_headline: 'B2B Evolution: Meeting New Customer Engagement Standards',
-        created_at: '2025-01-13T09:45:00Z'
-      }
-    ];
-  };
-
-  const processArticleData = (articles: Article[]) => {
-    console.log(`📊 Processing ${articles.length} articles for grouping`);
-    
-    // Group articles by client_email_address
-    const groups: { [key: string]: Article[] } = {};
-    
-    articles.forEach(article => {
-      const accountEmail = article.client_email_address || 'unknown@domain.com';
-      if (!groups[accountEmail]) {
-        groups[accountEmail] = [];
-      }
-      groups[accountEmail].push(article);
-    });
-
-    // Create article groups
-    const articleGroups: ArticleGroup[] = Object.entries(groups).map(([accountEmail, articles]) => ({
-      accountEmail,
-      articles: articles.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()),
-      totalArticles: articles.length
-    }));
-
-    // Sort groups by total articles
-    articleGroups.sort((a, b) => b.totalArticles - a.totalArticles);
-
-    console.log(`📈 Created ${articleGroups.length} article groups`);
-    articleGroups.forEach(group => {
-      console.log(`  📧 ${group.accountEmail}: ${group.articles.length} articles`);
-    });
-
-    setArticleGroups(articleGroups);
-
-    // Calculate metrics
-    setArticleMetrics({
-      totalArticles: articles.length,
-      articleGroups: articleGroups.length
-    });
-
-    console.log(`✅ Article metrics calculated:`, {
-      totalArticles: articles.length,
-      articleGroups: articleGroups.length
-    });
   };
 
   const fetchAllContactsPaginated = async () => {
@@ -267,6 +134,120 @@ function App() {
       console.error('💥 Error in fetchAllContactsPaginated:', err);
       return [];
     }
+  };
+
+  const fetchArticles = async () => {
+    try {
+      console.log('📰 Fetching articles...');
+      
+      const { data: articles, error } = await supabase
+        .from('potential_value_add')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching articles:', error);
+        // Use demo data as fallback
+        const demoArticles = generateDemoArticles();
+        processArticleData(demoArticles);
+        return;
+      }
+
+      if (articles && articles.length > 0) {
+        console.log(`✅ Fetched ${articles.length} articles`);
+        processArticleData(articles);
+      } else {
+        console.log('⚠️ No articles found, using demo data');
+        const demoArticles = generateDemoArticles();
+        processArticleData(demoArticles);
+      }
+    } catch (err) {
+      console.error('💥 Error in fetchArticles:', err);
+      // Fallback to demo data
+      const demoArticles = generateDemoArticles();
+      processArticleData(demoArticles);
+    } finally {
+      setLoadingArticles(false);
+    }
+  };
+
+  const generateDemoArticles = (): Article[] => {
+    return [
+      {
+        client_full_name: 'John Smith',
+        client_first_name: 'John',
+        client_last_name: 'Smith',
+        client_email_address: 'john@example.com',
+        parent_site: 'TechCrunch',
+        article_type: 'Funding News',
+        article_headline: 'AI Startup Raises $50M Series B',
+        article_link: 'https://techcrunch.com/ai-startup-series-b',
+        article_overview: 'Company secures major funding round for AI development',
+        article_background_story: 'Founded in 2020, the company has been developing AI solutions for enterprise customers',
+        article_problems_solved: 'Addresses data processing bottlenecks in large organizations',
+        article_short_summary: 'AI startup closes $50M funding round',
+        article_combined_headline: 'AI Innovation: Startup Secures $50M Series B for Enterprise Solutions',
+        created_at: '2025-01-15T10:30:00Z'
+      },
+      {
+        client_full_name: 'Sarah Johnson',
+        client_first_name: 'Sarah',
+        client_last_name: 'Johnson',
+        client_email_address: 'sarah@techcorp.com',
+        parent_site: 'Forbes',
+        article_type: 'Industry Analysis',
+        article_headline: 'The Future of Remote Work Technology',
+        article_link: 'https://forbes.com/remote-work-technology',
+        article_overview: 'Analysis of emerging technologies reshaping remote work',
+        article_background_story: 'Post-pandemic shift has accelerated adoption of remote collaboration tools',
+        article_problems_solved: 'Improves productivity and communication for distributed teams',
+        article_short_summary: 'Remote work tech trends analysis',
+        article_combined_headline: 'Remote Revolution: How Technology is Transforming Distributed Work',
+        created_at: '2025-01-14T15:45:00Z'
+      }
+    ];
+  };
+
+  const processArticleData = (articles: Article[]) => {
+    console.log(`📊 Processing ${articles.length} articles for grouping`);
+    
+    // Group articles by client email
+    const groups: { [key: string]: Article[] } = {};
+    
+    articles.forEach(article => {
+      const accountEmail = article.client_email_address || 'unknown@domain.com';
+      if (!groups[accountEmail]) {
+        groups[accountEmail] = [];
+      }
+      groups[accountEmail].push(article);
+    });
+
+    // Create article groups
+    const articleGroups: ArticleGroup[] = Object.entries(groups).map(([accountEmail, articles]) => ({
+      accountEmail,
+      articles: articles.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
+    }));
+
+    // Sort groups by number of articles
+    articleGroups.sort((a, b) => b.articles.length - a.articles.length);
+
+    console.log(`📈 Created ${articleGroups.length} article groups`);
+    articleGroups.forEach(group => {
+      console.log(`  📧 ${group.accountEmail}: ${group.articles.length} articles`);
+    });
+
+    setArticleGroups(articleGroups);
+
+    // Calculate article metrics
+    setArticleMetrics({
+      totalArticles: articles.length,
+      articleGroups: articleGroups.length
+    });
+
+    console.log(`✅ Article metrics calculated:`, {
+      totalArticles: articles.length,
+      articleGroups: articleGroups.length
+    });
   };
 
   const fetchContacts = async () => {
@@ -331,7 +312,6 @@ function App() {
         connection_count: 0,
         followers_count: 0,
         lead_country: 'India',
-        created_at: '2025-01-10T08:30:00Z',
         account_email: 'leonard@ontenlabs.com'
       },
       {
@@ -359,7 +339,6 @@ function App() {
         connection_count: 500,
         followers_count: 1200,
         lead_country: 'United States',
-        created_at: '2025-01-08T16:45:00Z',
         account_email: 'peter.kang@barrelny.com'
       },
       {
@@ -387,7 +366,6 @@ function App() {
         connection_count: 750,
         followers_count: 890,
         lead_country: 'Canada',
-        created_at: '2025-01-12T11:20:00Z',
         account_email: 'peter.kang@barrelny.com'
       }
     ];
@@ -449,6 +427,7 @@ function App() {
 
   const handleManualRefresh = () => {
     setLoading(true);
+    setLoadingArticles(true);
     fetchContacts();
     fetchArticles();
   };
@@ -483,12 +462,12 @@ function App() {
     setExpandedArticleGroups(newExpanded);
   };
 
-  const toggleArticleExpansion = (articleId: string) => {
+  const toggleArticleExpansion = (articleLink: string) => {
     const newExpanded = new Set(expandedArticles);
-    if (newExpanded.has(articleId)) {
-      newExpanded.delete(articleId);
+    if (newExpanded.has(articleLink)) {
+      newExpanded.delete(articleLink);
     } else {
-      newExpanded.add(articleId);
+      newExpanded.add(articleLink);
     }
     setExpandedArticles(newExpanded);
   };
@@ -497,91 +476,73 @@ function App() {
     setEditing({ contactId, field, value: currentValue || '' });
   };
 
-  const startArticleEditing = (articleId: string, field: string, currentValue: string) => {
-    setArticleEditing({ contactId: articleId, field, value: currentValue || '' });
-  };
-
   const saveEdit = async () => {
     if (!editing.contactId || !editing.field) return;
 
     try {
       console.log('💾 Saving edit:', editing);
       
+      // Determine which table to update based on the field and context
+      let tableName = 'icp_contacts_tracking_in_progress';
+      let idField = 'linkedin_profile_url';
+      
+      // Check if this is an article edit
+      if (editing.field.includes('article_') || editing.field.includes('client_') || editing.field === 'parent_site') {
+        tableName = 'potential_value_add';
+        idField = 'article_link';
+      }
+
       // Update Supabase
       const { error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
+        .from(tableName)
         .update({ [editing.field]: editing.value })
-        .eq('linkedin_profile_url', editing.contactId);
+        .eq(idField, editing.contactId);
 
       if (error) {
-        console.error('❌ Error updating contact:', error);
+        console.error('❌ Error updating record:', error);
         return;
       }
 
       // Update local state optimistically
-      setContactGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          contacts: group.contacts.map(contact => 
-            (contact.linkedin_profile_url === editing.contactId || contact.id === editing.contactId)
-              ? { ...contact, [editing.field!]: editing.value }
-              : contact
-          )
-        }))
-      );
+      if (tableName === 'potential_value_add') {
+        setArticleGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            articles: group.articles.map(article => 
+              article.article_link === editing.contactId
+                ? { ...article, [editing.field!]: editing.value }
+                : article
+            )
+          }))
+        );
+      } else {
+        setContactGroups(prevGroups => 
+          prevGroups.map(group => ({
+            ...group,
+            contacts: group.contacts.map(contact => 
+              (contact.linkedin_profile_url === editing.contactId || contact.id === editing.contactId)
+                ? { ...contact, [editing.field!]: editing.value }
+                : contact
+            )
+          }))
+        );
+      }
 
       setEditing({ contactId: null, field: null, value: '' });
-      console.log('✅ Contact updated successfully');
+      console.log('✅ Record updated successfully');
     } catch (error) {
       console.error('❌ Error saving edit:', error);
     }
   };
 
-  const saveArticleEdit = async () => {
-    if (!articleEditing.contactId || !articleEditing.field) return;
-
-    try {
-      console.log('💾 Saving article edit:', articleEditing);
-      
-      // Update Supabase
-      const { error } = await supabase
-        .from('potential_value_add')
-        .update({ [articleEditing.field]: articleEditing.value })
-        .eq('article_link', articleEditing.contactId);
-
-      if (error) {
-        console.error('❌ Error updating article:', error);
-        return;
-      }
-
-      // Update local state optimistically
-      setArticleGroups(prevGroups => 
-        prevGroups.map(group => ({
-          ...group,
-          articles: group.articles.map(article => 
-            article.article_link === articleEditing.contactId
-              ? { ...article, [articleEditing.field!]: articleEditing.value }
-              : article
-          )
-        }))
-      );
-
-      setArticleEditing({ contactId: null, field: null, value: '' });
-      console.log('✅ Article updated successfully');
-    } catch (error) {
-      console.error('❌ Error saving article edit:', error);
-    }
+  const cancelEdit = () => {
+    setEditing({ contactId: null, field: null, value: '' });
   };
 
   const deleteArticle = async (articleLink: string) => {
-    if (!confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
-      return;
-    }
-
     try {
       console.log('🗑️ Deleting article:', articleLink);
       
-      // Delete from Supabase
       const { error } = await supabase
         .from('potential_value_add')
         .delete()
@@ -596,124 +557,54 @@ function App() {
       setArticleGroups(prevGroups => 
         prevGroups.map(group => ({
           ...group,
-          articles: group.articles.filter(article => article.article_link !== articleLink),
-          totalArticles: group.articles.filter(article => article.article_link !== articleLink).length
+          articles: group.articles.filter(article => article.article_link !== articleLink)
         })).filter(group => group.articles.length > 0)
       );
 
       // Update metrics
+      const totalArticles = articleGroups.reduce((sum, group) => sum + group.articles.length, 0) - 1;
       setArticleMetrics(prev => ({
         ...prev,
-        totalArticles: prev.totalArticles - 1
+        totalArticles
       }));
 
+      setDeleteConfirm(null);
       console.log('✅ Article deleted successfully');
     } catch (error) {
       console.error('❌ Error deleting article:', error);
     }
   };
 
-  const cancelEdit = () => {
-    setEditing({ contactId: null, field: null, value: '' });
-  };
-
-  const cancelArticleEdit = () => {
-    setArticleEditing({ contactId: null, field: null, value: '' });
-  };
-
-  const filteredGroups = contactGroups.map(group => {
-    // Filter by selected account email first
+  const filteredGroups = contactGroups.filter(group => {
     if (selectedAccountEmail && group.accountEmail !== selectedAccountEmail) {
-      return null;
+      return false;
     }
-    
-    // If there's a search term, filter contacts within the group
-    if (searchTerm && searchTerm.trim() !== '') {
-      const searchLower = searchTerm.toLowerCase().trim();
-      const filteredContacts = group.contacts.filter(contact => 
-        (contact.full_name && contact.full_name.toLowerCase().includes(searchLower)) ||
-        (contact.first_name && contact.first_name.toLowerCase().includes(searchLower)) ||
-        (contact.last_name && contact.last_name.toLowerCase().includes(searchLower)) ||
-        (contact.company_name && contact.company_name.toLowerCase().includes(searchLower)) ||
-        (contact.job_title && contact.job_title.toLowerCase().includes(searchLower)) ||
-        (contact.work_email && contact.work_email.toLowerCase().includes(searchLower)) ||
-        (contact.company_domain && contact.company_domain.toLowerCase().includes(searchLower))
+    if (searchTerm) {
+      return group.contacts.some(contact => 
+        contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      
-      // Only return the group if it has matching contacts
-      if (filteredContacts.length > 0) {
-        return {
-          ...group,
-          contacts: filteredContacts,
-          leadsAbove80: filteredContacts.filter(c => (c.total_lead_score || c.lead_score || 0) >= 80).length
-        };
-      }
-      return null;
     }
-    
-    return group;
-  }).filter(group => group !== null) as ContactGroup[];
+    return true;
+  });
 
-  const filteredArticleGroups = articleGroups.map(group => {
-    // Filter by selected account email first
+  const filteredArticleGroups = articleGroups.filter(group => {
     if (selectedArticleAccountEmail && group.accountEmail !== selectedArticleAccountEmail) {
-      return null;
+      return false;
     }
-    
-    // If there's a search term, filter articles within the group
-    if (articleSearchTerm && articleSearchTerm.trim() !== '') {
-      const searchLower = articleSearchTerm.toLowerCase().trim();
-      const filteredArticles = group.articles.filter(article => 
-        (article.article_headline && article.article_headline.toLowerCase().includes(searchLower)) ||
-        (article.article_type && article.article_type.toLowerCase().includes(searchLower)) ||
-        (article.parent_site && article.parent_site.toLowerCase().includes(searchLower)) ||
-        (article.article_short_summary && article.article_short_summary.toLowerCase().includes(searchLower)) ||
-        (article.client_full_name && article.client_full_name.toLowerCase().includes(searchLower))
+    if (articleSearchTerm) {
+      return group.articles.some(article => 
+        article.article_headline?.toLowerCase().includes(articleSearchTerm.toLowerCase()) ||
+        article.article_type?.toLowerCase().includes(articleSearchTerm.toLowerCase()) ||
+        article.parent_site?.toLowerCase().includes(articleSearchTerm.toLowerCase())
       );
-      
-      // Only return the group if it has matching articles
-      if (filteredArticles.length > 0) {
-        return {
-          ...group,
-          articles: filteredArticles,
-          totalArticles: filteredArticles.length
-        };
-      }
-      return null;
     }
-    
-    return group;
-  }).filter(group => group !== null) as ArticleGroup[];
+    return true;
+  });
 
   const uniqueAccountEmails = contactGroups.map(group => group.accountEmail);
   const uniqueArticleAccountEmails = articleGroups.map(group => group.accountEmail);
-
-  // Create dropdown options with icons
-  const dropdownOptions = [
-    {
-      value: '',
-      label: 'All Account Emails',
-      icon: <User className="w-4 h-4" />
-    },
-    ...uniqueAccountEmails.map(email => ({
-      value: email,
-      label: email,
-      icon: <Mail className="w-4 h-4" />
-    }))
-  ];
-
-  const articleDropdownOptions = [
-    {
-      value: '',
-      label: 'All Account Emails',
-      icon: <User className="w-4 h-4" />
-    },
-    ...uniqueArticleAccountEmails.map(email => ({
-      value: email,
-      label: email,
-      icon: <Mail className="w-4 h-4" />
-    }))
-  ];
 
   useEffect(() => {
     fetchContacts();
@@ -777,16 +668,21 @@ function App() {
             <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
             <button
               onClick={handleManualRefresh}
-              disabled={loading || articlesLoading}
+              disabled={loading || loadingArticles}
               className="flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || articlesLoading) ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || loadingArticles) ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
         </div>
 
-        {/* Metrics Cards */}
+        {/* Dormant Contacts Section Header */}
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Dormant Contacts</h2>
+        </div>
+
+        {/* Contact Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-black text-white rounded-lg p-6">
             <div className="flex items-center">
@@ -820,19 +716,22 @@ function App() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search contacts by name, company, job title, email..."
+              placeholder="Search contacts..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <CustomDropdown
+          <select
             value={selectedAccountEmail}
-            onChange={setSelectedAccountEmail}
-            options={dropdownOptions}
-            placeholder="All Account Emails"
-            className="min-w-[280px]"
-          />
+            onChange={(e) => setSelectedAccountEmail(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+          >
+            <option value="">All Account Emails</option>
+            {uniqueAccountEmails.map(email => (
+              <option key={email} value={email}>{email}</option>
+            ))}
+          </select>
         </div>
 
         {/* Contact Groups */}
@@ -877,11 +776,11 @@ function App() {
                       <table className="min-w-full">
                         <thead>
                           <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <th className="pb-3 pr-6 w-64">Contact</th>
-                            <th className="pb-3 pr-6 w-48">Job Title</th>
-                            <th className="pb-3 pr-6 w-56">Company</th>
-                            <th className="pb-3 pr-4 w-20">Score</th>
-                            <th className="pb-3 w-32">Actions</th>
+                            <th className="pb-3 pr-8">Contact</th>
+                            <th className="pb-3 pr-8">Job Title</th>
+                            <th className="pb-3 pr-8">Company</th>
+                            <th className="pb-3 pr-8">Score</th>
+                            <th className="pb-3">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -889,7 +788,7 @@ function App() {
                             <React.Fragment key={contact.linkedin_profile_url || contact.id}>
                               {/* Contact Summary Row */}
                               <tr className="hover:bg-gray-50">
-                                <td className="py-3 pr-6 w-64">
+                                <td className="py-3 pr-8">
                                   <div className="text-sm font-medium text-gray-900">
                                     {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown'}
                                   </div>
@@ -904,8 +803,8 @@ function App() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-3 pr-6 w-48 text-sm text-gray-900">{formatFieldValue(contact.job_title)}</td>
-                                <td className="py-3 pr-6 w-56">
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(contact.job_title)}</td>
+                                <td className="py-3 pr-8">
                                   <div className="text-sm text-gray-900">{formatFieldValue(contact.company_name)}</div>
                                   {contact.company_domain && (
                                     <div className="text-sm text-gray-500">
@@ -920,18 +819,17 @@ function App() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-3 pr-4 w-20">
+                                <td className="py-3 pr-8">
                                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(contact.total_lead_score || contact.lead_score || 0)}`}>
                                     {contact.total_lead_score || contact.lead_score || 0}
                                   </span>
                                 </td>
-                                <td className="py-3 w-32">
+                                <td className="py-3">
                                   <button
                                     onClick={() => toggleContactExpansion(contact.linkedin_profile_url || contact.id || '')}
-                                    className="inline-flex items-center text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors duration-200"
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                   >
-                                    <ChevronRight className="w-4 h-4 mr-1" />
-                                    {expandedContacts.has(contact.linkedin_profile_url || contact.id || '') ? 'Hide Details' : 'Show Details'}
+                                    {expandedContacts.has(contact.linkedin_profile_url || contact.id || '') ? 'Hide Details' : 'View Details'}
                                   </button>
                                 </td>
                               </tr>
@@ -942,7 +840,7 @@ function App() {
                                   <td colSpan={5} className="py-6 bg-gray-50">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                       {/* Lead Information */}
-                                      <div className="bg-white p-4 rounded-lg group">
+                                      <div className="bg-white p-4 rounded-lg">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
@@ -960,7 +858,7 @@ function App() {
                                             { label: 'LinkedIn Connections', field: 'connection_count', value: contact.connection_count?.toString() },
                                             { label: 'LinkedIn Followers', field: 'followers_count', value: contact.followers_count?.toString() }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center group">
+                                            <div key={field} className="flex justify-between items-center">
                                               <span className="text-sm text-gray-600">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -980,7 +878,7 @@ function App() {
                                               ) : (
                                                 <div className="flex items-center space-x-2">
                                                   <span className="text-sm text-gray-900 text-right">
-                                                    {field === 'work_email' && value && value !== '-' ? (
+                                                    {field === 'work_email' && value ? (
                                                       <a 
                                                         href={`mailto:${value}`}
                                                         className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -1018,7 +916,7 @@ function App() {
                                       </div>
 
                                       {/* Company Information */}
-                                      <div className="bg-white p-4 rounded-lg group">
+                                      <div className="bg-white p-4 rounded-lg">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
@@ -1032,7 +930,7 @@ function App() {
                                             { label: 'Company Industry', field: 'company_industry', value: contact.company_industry },
                                             { label: 'Company Staff Range', field: 'company_staff_count_range', value: contact.company_staff_count_range }
                                           ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center group">
+                                            <div key={field} className="flex justify-between items-center">
                                               <span className="text-sm text-gray-600">{label}:</span>
                                               {editing.contactId === (contact.linkedin_profile_url || contact.id) && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
@@ -1052,7 +950,7 @@ function App() {
                                               ) : (
                                                 <div className="flex items-center space-x-2">
                                                   <span className="text-sm text-gray-900 text-right">
-                                                    {field === 'company_domain' && value && value !== '-' ? (
+                                                    {field === 'company_domain' && value ? (
                                                       <a 
                                                         href={`https://${value}`}
                                                         target="_blank"
@@ -1092,7 +990,7 @@ function App() {
                                       </div>
 
                                       {/* Daily Digest Information */}
-                                      <div className="bg-white p-4 rounded-lg group">
+                                      <div className="bg-white p-4 rounded-lg">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
@@ -1108,8 +1006,7 @@ function App() {
                                             { label: 'Talking Point 2', field: 'talking_point_2', value: contact.talking_point_2 },
                                             { label: 'Talking Point 3', field: 'talking_point_3', value: contact.talking_point_3 },
                                             { label: 'Sent to Client', field: 'sent_to_client', value: contact.sent_to_client },
-                                            { label: 'Sent Date', field: 'exact_sent_date', value: formatDate(contact.exact_sent_date) },
-                                            { label: 'Added On', field: 'created_at', value: formatDate(contact.created_at) }
+                                            { label: 'Sent Date', field: 'exact_sent_date', value: formatDate(contact.exact_sent_date) }
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-start group">
                                               <span className="text-sm text-gray-600 mr-2">{label}:</span>
@@ -1135,7 +1032,7 @@ function App() {
                                                     {formatFieldValue(value)}
                                                   </span>
                                                   <button
-                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, field.includes('date') ? (field === 'last_interaction_date' ? contact.last_interaction_date || '' : field === 'exact_sent_date' ? contact.exact_sent_date || '' : contact.created_at || '') : value || '')}
+                                                    onClick={() => startEditing(contact.linkedin_profile_url || contact.id || '', field, value || '')}
                                                     className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
                                                   >
                                                     <Edit className="w-4 h-4" />
@@ -1168,19 +1065,24 @@ function App() {
           )}
         </div>
 
+        {/* Potential Value Add Section Header */}
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Potential Value Add</h2>
+        </div>
+
         {/* Article Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="bg-blue-600 text-white rounded-lg p-6">
-            <div className="flex items-center">
-              <div className="text-2xl font-bold">{articleMetrics.articleGroups}</div>
-            </div>
-            <div className="text-sm opacity-80 mt-1">Article Groups</div>
-          </div>
-          <div className="bg-blue-600 text-white rounded-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-black text-white rounded-lg p-6">
             <div className="flex items-center">
               <div className="text-2xl font-bold">{articleMetrics.totalArticles}</div>
             </div>
             <div className="text-sm opacity-80 mt-1">Total Articles</div>
+          </div>
+          <div className="bg-black text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{articleMetrics.articleGroups}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Article Groups</div>
           </div>
         </div>
 
@@ -1190,22 +1092,25 @@ function App() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search articles by headline, type, site, summary..."
+              placeholder="Search articles..."
               value={articleSearchTerm}
               onChange={(e) => setArticleSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <CustomDropdown
+          <select
             value={selectedArticleAccountEmail}
-            onChange={setSelectedArticleAccountEmail}
-            options={articleDropdownOptions}
-            placeholder="All Account Emails"
-            className="min-w-[280px]"
-          />
+            onChange={(e) => setSelectedArticleAccountEmail(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[200px]"
+          >
+            <option value="">All Account Emails</option>
+            {uniqueArticleAccountEmails.map(email => (
+              <option key={email} value={email}>{email}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Articles by Account Email */}
+        {/* Article Groups */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Articles by Account Email</h2>
@@ -1215,7 +1120,7 @@ function App() {
           <div className="divide-y divide-gray-200">
             {filteredArticleGroups.map((group) => (
               <div key={group.accountEmail}>
-                {/* Article Group Header */}
+                {/* Group Header */}
                 <div
                   className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
                   onClick={() => toggleArticleGroupExpansion(group.accountEmail)}
@@ -1230,25 +1135,25 @@ function App() {
                       <div className="flex items-center">
                         <span className="text-lg font-medium text-gray-900">{group.accountEmail}</span>
                         <span className="ml-2 text-sm text-gray-500">
-                          {group.totalArticles} articles
+                          {group.articles.length} articles
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Article Group Content */}
+                {/* Group Content */}
                 {expandedArticleGroups.has(group.accountEmail) && (
                   <div className="px-6 pb-4">
                     <div className="overflow-x-auto">
                       <table className="min-w-full">
                         <thead>
                           <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <th className="pb-3 pr-6 w-64">Article</th>
-                            <th className="pb-3 pr-6 w-32">Type</th>
-                            <th className="pb-3 pr-6 w-32">Source</th>
-                            <th className="pb-3 pr-4 w-32">Created</th>
-                            <th className="pb-3 w-32">Actions</th>
+                            <th className="pb-3 pr-8">Article</th>
+                            <th className="pb-3 pr-8">Type</th>
+                            <th className="pb-3 pr-8">Source</th>
+                            <th className="pb-3 pr-8">Created</th>
+                            <th className="pb-3">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -1256,35 +1161,55 @@ function App() {
                             <React.Fragment key={article.article_link}>
                               {/* Article Summary Row */}
                               <tr className="hover:bg-gray-50">
-                                <td className="py-3 pr-6 w-64">
+                                <td className="py-3 pr-8">
                                   <div className="text-sm font-medium text-gray-900">
                                     {formatFieldValue(article.article_headline)}
                                   </div>
-                                  {article.article_short_summary && (
-                                    <div className="text-sm text-gray-500 truncate">
-                                      {article.article_short_summary}
-                                    </div>
-                                  )}
+                                  <div className="text-sm text-gray-500">
+                                    <a 
+                                      href={article.article_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      View Article
+                                    </a>
+                                  </div>
                                 </td>
-                                <td className="py-3 pr-6 w-32 text-sm text-gray-900">{formatFieldValue(article.article_type)}</td>
-                                <td className="py-3 pr-6 w-32 text-sm text-gray-900">{formatFieldValue(article.parent_site)}</td>
-                                <td className="py-3 pr-4 w-32 text-sm text-gray-900">{formatDate(article.created_at)}</td>
-                                <td className="py-3 w-32">
-                                  <div className="flex items-center space-x-2">
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(article.article_type)}</td>
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatFieldValue(article.article_link)}</td>
+                                <td className="py-3 pr-8 text-sm text-gray-900">{formatDate(article.created_at)}</td>
+                                <td className="py-3">
+                                  <div className="flex items-center space-x-4">
                                     <button
                                       onClick={() => toggleArticleExpansion(article.article_link)}
-                                      className="inline-flex items-center text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors duration-200"
+                                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                     >
-                                      <ChevronRight className="w-4 h-4 mr-1" />
-                                      {expandedArticles.has(article.article_link) ? 'Hide' : 'Show'}
+                                      {expandedArticles.has(article.article_link) ? 'Hide Details' : 'View Details'}
                                     </button>
-                                    <button
-                                      onClick={() => deleteArticle(article.article_link)}
-                                      className="text-red-600 hover:text-red-800 transition-colors duration-200"
-                                      title="Delete Article"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    {deleteConfirm === article.article_link ? (
+                                      <div className="flex items-center space-x-2">
+                                        <button
+                                          onClick={() => deleteArticle(article.article_link)}
+                                          className="text-red-600 hover:text-red-800 text-xs"
+                                        >
+                                          Confirm
+                                        </button>
+                                        <button
+                                          onClick={() => setDeleteConfirm(null)}
+                                          className="text-gray-600 hover:text-gray-800 text-xs"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => setDeleteConfirm(article.article_link)}
+                                        className="text-red-600 hover:text-red-800"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -1293,71 +1218,12 @@ function App() {
                               {expandedArticles.has(article.article_link) && (
                                 <tr>
                                   <td colSpan={5} className="py-6 bg-gray-50">
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                      {/* Client Information */}
-                                      <div className="bg-white p-4 rounded-lg group">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                      {/* Article Details */}
+                                      <div className="bg-white p-4 rounded-lg">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
                                             <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                                            Client Information
-                                          </h4>
-                                        </div>
-                                        <div className="space-y-3">
-                                          {[
-                                            { label: 'Client Email', field: 'client_email_address', value: article.client_email_address },
-                                            { label: 'Full Name', field: 'client_full_name', value: article.client_full_name },
-                                            { label: 'First Name', field: 'client_first_name', value: article.client_first_name },
-                                            { label: 'Last Name', field: 'client_last_name', value: article.client_last_name }
-                                          ].map(({ label, field, value }) => (
-                                            <div key={field} className="flex justify-between items-center group">
-                                              <span className="text-sm text-gray-600">{label}:</span>
-                                              {articleEditing.contactId === article.article_link && articleEditing.field === field ? (
-                                                <div className="flex items-center space-x-2">
-                                                  <input
-                                                    type="text"
-                                                    value={articleEditing.value}
-                                                    onChange={(e) => setArticleEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32 text-right"
-                                                  />
-                                                  <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
-                                                    <Save className="w-4 h-4" />
-                                                  </button>
-                                                  <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
-                                                    <X className="w-4 h-4" />
-                                                  </button>
-                                                </div>
-                                              ) : (
-                                                <div className="flex items-center space-x-2">
-                                                  <span className="text-sm text-gray-900 text-right">
-                                                    {field === 'client_email_address' && value && value !== '-' ? (
-                                                      <a 
-                                                        href={`mailto:${value}`}
-                                                        className="text-blue-600 hover:text-blue-800 hover:underline"
-                                                      >
-                                                        {formatFieldValue(value)}
-                                                      </a>
-                                                    ) : (
-                                                      formatFieldValue(value)
-                                                    )}
-                                                  </span>
-                                                  <button
-                                                    onClick={() => startArticleEditing(article.article_link, field, value || '')}
-                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                  >
-                                                    <Edit className="w-4 h-4" />
-                                                  </button>
-                                                </div>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* Article Details */}
-                                      <div className="bg-white p-4 rounded-lg group">
-                                        <div className="flex items-center justify-between mb-4">
-                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
-                                            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                                             Article Details
                                           </h4>
                                         </div>
@@ -1366,34 +1232,49 @@ function App() {
                                             { label: 'Headline', field: 'article_headline', value: article.article_headline },
                                             { label: 'Type', field: 'article_type', value: article.article_type },
                                             { label: 'Parent Site', field: 'parent_site', value: article.parent_site },
-                                            { label: 'Combined Headline', field: 'article_combined_headline', value: article.article_combined_headline }
+                                            { label: 'Link', field: 'article_link', value: article.article_link },
+                                            { label: 'Overview', field: 'article_overview', value: article.article_overview },
+                                            { label: 'Background Story', field: 'article_background_story', value: article.article_background_story },
+                                            { label: 'Problems Solved', field: 'article_problems_solved', value: article.article_problems_solved },
+                                            { label: 'Short Summary', field: 'article_short_summary', value: article.article_short_summary }
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-start group">
                                               <span className="text-sm text-gray-600 mr-2">{label}:</span>
-                                              {articleEditing.contactId === article.article_link && articleEditing.field === field ? (
+                                              {editing.contactId === article.article_link && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
                                                   <textarea
-                                                    value={articleEditing.value}
-                                                    onChange={(e) => setArticleEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none text-right"
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-64 h-20 resize-none"
                                                   />
                                                   <div className="flex flex-col space-y-1">
-                                                    <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
+                                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                       <Save className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
+                                                    <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
                                                       <X className="w-4 h-4" />
                                                     </button>
                                                   </div>
                                                 </div>
                                               ) : (
                                                 <div className="flex items-start space-x-2 flex-1">
-                                                  <span className="text-sm text-gray-900 text-right flex-1">
-                                                    {formatFieldValue(value)}
+                                                  <span className="text-sm text-gray-900 text-left flex-1">
+                                                    {field === 'article_link' && value ? (
+                                                      <a 
+                                                        href={value}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline break-all"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      <span className="break-words">{formatFieldValue(value)}</span>
+                                                    )}
                                                   </span>
                                                   <button
-                                                    onClick={() => startArticleEditing(article.article_link, field, value || '')}
-                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                                                    onClick={() => startEditing(article.article_link, field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 flex-shrink-0"
                                                   >
                                                     <Edit className="w-4 h-4" />
                                                   </button>
@@ -1402,7 +1283,7 @@ function App() {
                                             </div>
                                           ))}
                                           {article.article_link && (
-                                            <div className="pt-2 text-right">
+                                            <div className="pt-2">
                                               <a
                                                 href={article.article_link}
                                                 target="_blank"
@@ -1418,52 +1299,59 @@ function App() {
                                       </div>
 
                                       {/* Article Content */}
-                                      <div className="bg-white p-4 rounded-lg group">
+                                      <div className="bg-white p-4 rounded-lg">
                                         <div className="flex items-center justify-between mb-4">
                                           <h4 className="text-sm font-semibold text-gray-900 flex items-center">
-                                            <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                                            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                                             Article Content
                                           </h4>
                                         </div>
                                         <div className="space-y-3">
                                           {[
-                                            { label: 'Short Summary', field: 'article_short_summary', value: article.article_short_summary },
-                                            { label: 'Overview', field: 'article_overview', value: article.article_overview },
-                                            { label: 'Background Story', field: 'article_background_story', value: article.article_background_story },
-                                            { label: 'Problems Solved', field: 'article_problems_solved', value: article.article_problems_solved },
-                                            { label: 'Created At', field: 'created_at', value: formatDate(article.created_at) }
+                                            { label: 'Combined Headline', field: 'article_combined_headline', value: article.article_combined_headline },
+                                            { label: 'Client Full Name', field: 'client_full_name', value: article.client_full_name },
+                                            { label: 'Client First Name', field: 'client_first_name', value: article.client_first_name },
+                                            { label: 'Client Last Name', field: 'client_last_name', value: article.client_last_name },
+                                            { label: 'Client Email', field: 'client_email_address', value: article.client_email_address }
                                           ].map(({ label, field, value }) => (
                                             <div key={field} className="flex justify-between items-start group">
                                               <span className="text-sm text-gray-600 mr-2">{label}:</span>
-                                              {articleEditing.contactId === article.article_link && articleEditing.field === field ? (
+                                              {editing.contactId === article.article_link && editing.field === field ? (
                                                 <div className="flex items-center space-x-2">
                                                   <textarea
-                                                    value={articleEditing.value}
-                                                    onChange={(e) => setArticleEditing(prev => ({ ...prev, value: e.target.value }))}
-                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none text-right"
+                                                    value={editing.value}
+                                                    onChange={(e) => setEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-64 h-16 resize-none"
                                                   />
                                                   <div className="flex flex-col space-y-1">
-                                                    <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
+                                                    <button onClick={saveEdit} className="text-green-600 hover:text-green-800">
                                                       <Save className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
+                                                    <button onClick={cancelEdit} className="text-red-600 hover:text-red-800">
                                                       <X className="w-4 h-4" />
                                                     </button>
                                                   </div>
                                                 </div>
                                               ) : (
                                                 <div className="flex items-start space-x-2 flex-1">
-                                                  <span className="text-sm text-gray-900 text-right flex-1">
-                                                    {formatFieldValue(value)}
+                                                  <span className="text-sm text-gray-900 text-left flex-1">
+                                                    {field === 'client_email_address' && value ? (
+                                                      <a 
+                                                        href={`mailto:${value}`}
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline break-all"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      <span className="break-words">{formatFieldValue(value)}</span>
+                                                    )}
                                                   </span>
-                                                  {field !== 'created_at' && (
-                                                    <button
-                                                      onClick={() => startArticleEditing(article.article_link, field, field === 'created_at' ? article.created_at || '' : value || '')}
-                                                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
-                                                    >
-                                                      <Edit className="w-4 h-4" />
-                                                    </button>
-                                                  )}
+                                                  <button
+                                                    onClick={() => startEditing(article.article_link, field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 flex-shrink-0"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
                                                 </div>
                                               )}
                                             </div>
@@ -1485,14 +1373,7 @@ function App() {
             ))}
           </div>
 
-          {articlesLoading && (
-            <div className="px-6 py-12 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">Loading articles...</p>
-            </div>
-          )}
-
-          {!articlesLoading && filteredArticleGroups.length === 0 && (
+          {filteredArticleGroups.length === 0 && (
             <div className="px-6 py-12 text-center">
               <p className="text-gray-500">No articles found matching your criteria.</p>
             </div>
