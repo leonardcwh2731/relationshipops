@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink, Mail, User } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Search, Edit, Save, X, ExternalLink, Mail, User, Trash2 } from 'lucide-react';
 import { Contact } from './types/Contact';
 import { supabase } from './lib/supabase';
 import { CustomDropdown } from './components/CustomDropdown';
@@ -10,6 +10,29 @@ interface ContactGroup {
   leadsAbove80: number;
 }
 
+interface Article {
+  client_full_name?: string;
+  client_first_name?: string;
+  client_last_name?: string;
+  client_email_address?: string;
+  parent_site?: string;
+  article_type?: string;
+  article_headline?: string;
+  article_link: string;
+  article_overview?: string;
+  article_background_story?: string;
+  article_problems_solved?: string;
+  article_short_summary?: string;
+  article_combined_headline?: string;
+  created_at?: string;
+}
+
+interface ArticleGroup {
+  accountEmail: string;
+  articles: Article[];
+  totalArticles: number;
+}
+
 interface EditingState {
   contactId: string | null;
   field: string | null;
@@ -18,18 +41,29 @@ interface EditingState {
 
 function App() {
   const [contactGroups, setContactGroups] = useState<ContactGroup[]>([]);
+  const [articleGroups, setArticleGroups] = useState<ArticleGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [articlesLoading, setArticlesLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [articleSearchTerm, setArticleSearchTerm] = useState('');
   const [selectedAccountEmail, setSelectedAccountEmail] = useState('');
+  const [selectedArticleAccountEmail, setSelectedArticleAccountEmail] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set());
+  const [expandedArticleGroups, setExpandedArticleGroups] = useState<Set<string>>(new Set());
+  const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<EditingState>({ contactId: null, field: null, value: '' });
+  const [articleEditing, setArticleEditing] = useState<EditingState>({ contactId: null, field: null, value: '' });
   const [totalMetrics, setTotalMetrics] = useState({
     totalContacts: 0,
     accountGroups: 0,
     leadsAbove80: 0,
     readyContacts: 0
+  });
+  const [articleMetrics, setArticleMetrics] = useState({
+    totalArticles: 0,
+    articleGroups: 0
   });
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -53,6 +87,137 @@ function App() {
       console.error('💥 Error in fetchTotalContactCount:', err);
       return 0;
     }
+  };
+
+  const fetchArticles = async () => {
+    try {
+      setArticlesLoading(true);
+      console.log('📰 Fetching articles from potential_value_add...');
+
+      const { data: articles, error } = await supabase
+        .from('potential_value_add')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching articles:', error);
+        // Use demo data on error
+        const demoArticles = generateDemoArticles();
+        processArticleData(demoArticles);
+        return;
+      }
+
+      if (articles && articles.length > 0) {
+        console.log(`✅ Fetched ${articles.length} articles`);
+        processArticleData(articles);
+      } else {
+        console.log('⚠️ No articles found, using demo data');
+        const demoArticles = generateDemoArticles();
+        processArticleData(demoArticles);
+      }
+    } catch (err) {
+      console.error('💥 Error in fetchArticles:', err);
+      const demoArticles = generateDemoArticles();
+      processArticleData(demoArticles);
+    } finally {
+      setArticlesLoading(false);
+    }
+  };
+
+  const generateDemoArticles = (): Article[] => {
+    return [
+      {
+        article_link: 'https://example.com/article1',
+        client_email_address: 'leonard@ontenlabs.com',
+        client_full_name: 'Leonard Chen',
+        client_first_name: 'Leonard',
+        client_last_name: 'Chen',
+        parent_site: 'TechCrunch',
+        article_type: 'Industry News',
+        article_headline: 'AI Revolution in Sales Automation',
+        article_overview: 'The latest trends in AI-powered sales automation tools',
+        article_background_story: 'Companies are increasingly adopting AI to streamline sales processes',
+        article_problems_solved: 'Reduces manual work and improves lead qualification',
+        article_short_summary: 'AI tools are transforming sales workflows',
+        article_combined_headline: 'AI Revolution: How Sales Teams Are Embracing Automation',
+        created_at: '2025-01-15T10:30:00Z'
+      },
+      {
+        article_link: 'https://example.com/article2',
+        client_email_address: 'peter.kang@barrelny.com',
+        client_full_name: 'Peter Kang',
+        client_first_name: 'Peter',
+        client_last_name: 'Kang',
+        parent_site: 'Forbes',
+        article_type: 'Case Study',
+        article_headline: 'Marketing ROI Optimization Strategies',
+        article_overview: 'How companies are maximizing their marketing investments',
+        article_background_story: 'Marketing budgets are under scrutiny for ROI',
+        article_problems_solved: 'Provides data-driven approaches to marketing spend',
+        article_short_summary: 'Proven strategies for better marketing ROI',
+        article_combined_headline: 'ROI Optimization: Data-Driven Marketing Strategies That Work',
+        created_at: '2025-01-14T14:20:00Z'
+      },
+      {
+        article_link: 'https://example.com/article3',
+        client_email_address: 'peter.kang@barrelny.com',
+        client_full_name: 'Peter Kang',
+        client_first_name: 'Peter',
+        client_last_name: 'Kang',
+        parent_site: 'Harvard Business Review',
+        article_type: 'Research',
+        article_headline: 'Future of B2B Customer Engagement',
+        article_overview: 'Research on evolving B2B customer expectations',
+        article_background_story: 'B2B buyers are demanding more personalized experiences',
+        article_problems_solved: 'Helps understand changing buyer behavior',
+        article_short_summary: 'B2B engagement is becoming more consumer-like',
+        article_combined_headline: 'B2B Evolution: Meeting New Customer Engagement Standards',
+        created_at: '2025-01-13T09:45:00Z'
+      }
+    ];
+  };
+
+  const processArticleData = (articles: Article[]) => {
+    console.log(`📊 Processing ${articles.length} articles for grouping`);
+    
+    // Group articles by client_email_address
+    const groups: { [key: string]: Article[] } = {};
+    
+    articles.forEach(article => {
+      const accountEmail = article.client_email_address || 'unknown@domain.com';
+      if (!groups[accountEmail]) {
+        groups[accountEmail] = [];
+      }
+      groups[accountEmail].push(article);
+    });
+
+    // Create article groups
+    const articleGroups: ArticleGroup[] = Object.entries(groups).map(([accountEmail, articles]) => ({
+      accountEmail,
+      articles: articles.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()),
+      totalArticles: articles.length
+    }));
+
+    // Sort groups by total articles
+    articleGroups.sort((a, b) => b.totalArticles - a.totalArticles);
+
+    console.log(`📈 Created ${articleGroups.length} article groups`);
+    articleGroups.forEach(group => {
+      console.log(`  📧 ${group.accountEmail}: ${group.articles.length} articles`);
+    });
+
+    setArticleGroups(articleGroups);
+
+    // Calculate metrics
+    setArticleMetrics({
+      totalArticles: articles.length,
+      articleGroups: articleGroups.length
+    });
+
+    console.log(`✅ Article metrics calculated:`, {
+      totalArticles: articles.length,
+      articleGroups: articleGroups.length
+    });
   };
 
   const fetchAllContactsPaginated = async () => {
@@ -285,6 +450,7 @@ function App() {
   const handleManualRefresh = () => {
     setLoading(true);
     fetchContacts();
+    fetchArticles();
   };
 
   const toggleGroupExpansion = (accountEmail: string) => {
@@ -307,8 +473,32 @@ function App() {
     setExpandedContacts(newExpanded);
   };
 
+  const toggleArticleGroupExpansion = (accountEmail: string) => {
+    const newExpanded = new Set(expandedArticleGroups);
+    if (newExpanded.has(accountEmail)) {
+      newExpanded.delete(accountEmail);
+    } else {
+      newExpanded.add(accountEmail);
+    }
+    setExpandedArticleGroups(newExpanded);
+  };
+
+  const toggleArticleExpansion = (articleId: string) => {
+    const newExpanded = new Set(expandedArticles);
+    if (newExpanded.has(articleId)) {
+      newExpanded.delete(articleId);
+    } else {
+      newExpanded.add(articleId);
+    }
+    setExpandedArticles(newExpanded);
+  };
+
   const startEditing = (contactId: string, field: string, currentValue: string) => {
     setEditing({ contactId, field, value: currentValue || '' });
+  };
+
+  const startArticleEditing = (articleId: string, field: string, currentValue: string) => {
+    setArticleEditing({ contactId: articleId, field, value: currentValue || '' });
   };
 
   const saveEdit = async () => {
@@ -347,8 +537,88 @@ function App() {
     }
   };
 
+  const saveArticleEdit = async () => {
+    if (!articleEditing.contactId || !articleEditing.field) return;
+
+    try {
+      console.log('💾 Saving article edit:', articleEditing);
+      
+      // Update Supabase
+      const { error } = await supabase
+        .from('potential_value_add')
+        .update({ [articleEditing.field]: articleEditing.value })
+        .eq('article_link', articleEditing.contactId);
+
+      if (error) {
+        console.error('❌ Error updating article:', error);
+        return;
+      }
+
+      // Update local state optimistically
+      setArticleGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          articles: group.articles.map(article => 
+            article.article_link === articleEditing.contactId
+              ? { ...article, [articleEditing.field!]: articleEditing.value }
+              : article
+          )
+        }))
+      );
+
+      setArticleEditing({ contactId: null, field: null, value: '' });
+      console.log('✅ Article updated successfully');
+    } catch (error) {
+      console.error('❌ Error saving article edit:', error);
+    }
+  };
+
+  const deleteArticle = async (articleLink: string) => {
+    if (!confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      console.log('🗑️ Deleting article:', articleLink);
+      
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('potential_value_add')
+        .delete()
+        .eq('article_link', articleLink);
+
+      if (error) {
+        console.error('❌ Error deleting article:', error);
+        return;
+      }
+
+      // Update local state
+      setArticleGroups(prevGroups => 
+        prevGroups.map(group => ({
+          ...group,
+          articles: group.articles.filter(article => article.article_link !== articleLink),
+          totalArticles: group.articles.filter(article => article.article_link !== articleLink).length
+        })).filter(group => group.articles.length > 0)
+      );
+
+      // Update metrics
+      setArticleMetrics(prev => ({
+        ...prev,
+        totalArticles: prev.totalArticles - 1
+      }));
+
+      console.log('✅ Article deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting article:', error);
+    }
+  };
+
   const cancelEdit = () => {
     setEditing({ contactId: null, field: null, value: '' });
+  };
+
+  const cancelArticleEdit = () => {
+    setArticleEditing({ contactId: null, field: null, value: '' });
   };
 
   const filteredGroups = contactGroups.map(group => {
@@ -384,7 +654,39 @@ function App() {
     return group;
   }).filter(group => group !== null) as ContactGroup[];
 
+  const filteredArticleGroups = articleGroups.map(group => {
+    // Filter by selected account email first
+    if (selectedArticleAccountEmail && group.accountEmail !== selectedArticleAccountEmail) {
+      return null;
+    }
+    
+    // If there's a search term, filter articles within the group
+    if (articleSearchTerm && articleSearchTerm.trim() !== '') {
+      const searchLower = articleSearchTerm.toLowerCase().trim();
+      const filteredArticles = group.articles.filter(article => 
+        (article.article_headline && article.article_headline.toLowerCase().includes(searchLower)) ||
+        (article.article_type && article.article_type.toLowerCase().includes(searchLower)) ||
+        (article.parent_site && article.parent_site.toLowerCase().includes(searchLower)) ||
+        (article.article_short_summary && article.article_short_summary.toLowerCase().includes(searchLower)) ||
+        (article.client_full_name && article.client_full_name.toLowerCase().includes(searchLower))
+      );
+      
+      // Only return the group if it has matching articles
+      if (filteredArticles.length > 0) {
+        return {
+          ...group,
+          articles: filteredArticles,
+          totalArticles: filteredArticles.length
+        };
+      }
+      return null;
+    }
+    
+    return group;
+  }).filter(group => group !== null) as ArticleGroup[];
+
   const uniqueAccountEmails = contactGroups.map(group => group.accountEmail);
+  const uniqueArticleAccountEmails = articleGroups.map(group => group.accountEmail);
 
   // Create dropdown options with icons
   const dropdownOptions = [
@@ -400,11 +702,28 @@ function App() {
     }))
   ];
 
+  const articleDropdownOptions = [
+    {
+      value: '',
+      label: 'All Account Emails',
+      icon: <User className="w-4 h-4" />
+    },
+    ...uniqueArticleAccountEmails.map(email => ({
+      value: email,
+      label: email,
+      icon: <Mail className="w-4 h-4" />
+    }))
+  ];
+
   useEffect(() => {
     fetchContacts();
+    fetchArticles();
 
     // Set up auto-refresh every 30 seconds
-    refreshIntervalRef.current = setInterval(fetchContacts, 30000);
+    refreshIntervalRef.current = setInterval(() => {
+      fetchContacts();
+      fetchArticles();
+    }, 30000);
 
     return () => {
       if (refreshIntervalRef.current) {
@@ -458,10 +777,10 @@ function App() {
             <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
             <button
               onClick={handleManualRefresh}
-              disabled={loading}
+              disabled={loading || articlesLoading}
               className="flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || articlesLoading) ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
@@ -517,7 +836,7 @@ function App() {
         </div>
 
         {/* Contact Groups */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow mb-8">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Contacts by Account Email</h2>
             <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
@@ -845,6 +1164,337 @@ function App() {
           {filteredGroups.length === 0 && (
             <div className="px-6 py-12 text-center">
               <p className="text-gray-500">No contacts found matching your criteria.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Article Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-blue-600 text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{articleMetrics.articleGroups}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Article Groups</div>
+          </div>
+          <div className="bg-blue-600 text-white rounded-lg p-6">
+            <div className="flex items-center">
+              <div className="text-2xl font-bold">{articleMetrics.totalArticles}</div>
+            </div>
+            <div className="text-sm opacity-80 mt-1">Total Articles</div>
+          </div>
+        </div>
+
+        {/* Article Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search articles by headline, type, site, summary..."
+              value={articleSearchTerm}
+              onChange={(e) => setArticleSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+            />
+          </div>
+          <CustomDropdown
+            value={selectedArticleAccountEmail}
+            onChange={setSelectedArticleAccountEmail}
+            options={articleDropdownOptions}
+            placeholder="All Account Emails"
+            className="min-w-[280px]"
+          />
+        </div>
+
+        {/* Articles by Account Email */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Articles by Account Email</h2>
+            <p className="text-sm text-gray-500">Sorted by creation date (newest first) • Auto-refreshes every 30 seconds</p>
+          </div>
+          
+          <div className="divide-y divide-gray-200">
+            {filteredArticleGroups.map((group) => (
+              <div key={group.accountEmail}>
+                {/* Article Group Header */}
+                <div
+                  className="px-6 py-4 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => toggleArticleGroupExpansion(group.accountEmail)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      {expandedArticleGroups.has(group.accountEmail) ? (
+                        <ChevronDown className="w-5 h-5 text-gray-400 mr-2" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-400 mr-2" />
+                      )}
+                      <div className="flex items-center">
+                        <span className="text-lg font-medium text-gray-900">{group.accountEmail}</span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          {group.totalArticles} articles
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Article Group Content */}
+                {expandedArticleGroups.has(group.accountEmail) && (
+                  <div className="px-6 pb-4">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="pb-3 pr-6 w-64">Article</th>
+                            <th className="pb-3 pr-6 w-32">Type</th>
+                            <th className="pb-3 pr-6 w-32">Source</th>
+                            <th className="pb-3 pr-4 w-32">Created</th>
+                            <th className="pb-3 w-32">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {group.articles.map((article) => (
+                            <React.Fragment key={article.article_link}>
+                              {/* Article Summary Row */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="py-3 pr-6 w-64">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {formatFieldValue(article.article_headline)}
+                                  </div>
+                                  {article.article_short_summary && (
+                                    <div className="text-sm text-gray-500 truncate">
+                                      {article.article_short_summary}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3 pr-6 w-32 text-sm text-gray-900">{formatFieldValue(article.article_type)}</td>
+                                <td className="py-3 pr-6 w-32 text-sm text-gray-900">{formatFieldValue(article.parent_site)}</td>
+                                <td className="py-3 pr-4 w-32 text-sm text-gray-900">{formatDate(article.created_at)}</td>
+                                <td className="py-3 w-32">
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      onClick={() => toggleArticleExpansion(article.article_link)}
+                                      className="inline-flex items-center text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors duration-200"
+                                    >
+                                      <ChevronRight className="w-4 h-4 mr-1" />
+                                      {expandedArticles.has(article.article_link) ? 'Hide' : 'Show'}
+                                    </button>
+                                    <button
+                                      onClick={() => deleteArticle(article.article_link)}
+                                      className="text-red-600 hover:text-red-800 transition-colors duration-200"
+                                      title="Delete Article"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+
+                              {/* Article Details Row */}
+                              {expandedArticles.has(article.article_link) && (
+                                <tr>
+                                  <td colSpan={5} className="py-6 bg-gray-50">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                      {/* Client Information */}
+                                      <div className="bg-white p-4 rounded-lg group">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                                            Client Information
+                                          </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Client Email', field: 'client_email_address', value: article.client_email_address },
+                                            { label: 'Full Name', field: 'client_full_name', value: article.client_full_name },
+                                            { label: 'First Name', field: 'client_first_name', value: article.client_first_name },
+                                            { label: 'Last Name', field: 'client_last_name', value: article.client_last_name }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-center group">
+                                              <span className="text-sm text-gray-600">{label}:</span>
+                                              {articleEditing.contactId === article.article_link && articleEditing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <input
+                                                    type="text"
+                                                    value={articleEditing.value}
+                                                    onChange={(e) => setArticleEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-32 text-right"
+                                                  />
+                                                  <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
+                                                    <Save className="w-4 h-4" />
+                                                  </button>
+                                                  <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
+                                                    <X className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-center space-x-2">
+                                                  <span className="text-sm text-gray-900 text-right">
+                                                    {field === 'client_email_address' && value && value !== '-' ? (
+                                                      <a 
+                                                        href={`mailto:${value}`}
+                                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                                      >
+                                                        {formatFieldValue(value)}
+                                                      </a>
+                                                    ) : (
+                                                      formatFieldValue(value)
+                                                    )}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startArticleEditing(article.article_link, field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Article Details */}
+                                      <div className="bg-white p-4 rounded-lg group">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                            Article Details
+                                          </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Headline', field: 'article_headline', value: article.article_headline },
+                                            { label: 'Type', field: 'article_type', value: article.article_type },
+                                            { label: 'Parent Site', field: 'parent_site', value: article.parent_site },
+                                            { label: 'Combined Headline', field: 'article_combined_headline', value: article.article_combined_headline }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-start group">
+                                              <span className="text-sm text-gray-600 mr-2">{label}:</span>
+                                              {articleEditing.contactId === article.article_link && articleEditing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <textarea
+                                                    value={articleEditing.value}
+                                                    onChange={(e) => setArticleEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none text-right"
+                                                  />
+                                                  <div className="flex flex-col space-y-1">
+                                                    <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
+                                                      <Save className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
+                                                      <X className="w-4 h-4" />
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-start space-x-2 flex-1">
+                                                  <span className="text-sm text-gray-900 text-right flex-1">
+                                                    {formatFieldValue(value)}
+                                                  </span>
+                                                  <button
+                                                    onClick={() => startArticleEditing(article.article_link, field, value || '')}
+                                                    className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                          {article.article_link && (
+                                            <div className="pt-2 text-right">
+                                              <a
+                                                href={article.article_link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                                              >
+                                                <ExternalLink className="w-4 h-4 mr-1" />
+                                                View Article
+                                              </a>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Article Content */}
+                                      <div className="bg-white p-4 rounded-lg group">
+                                        <div className="flex items-center justify-between mb-4">
+                                          <h4 className="text-sm font-semibold text-gray-900 flex items-center">
+                                            <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                                            Article Content
+                                          </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                          {[
+                                            { label: 'Short Summary', field: 'article_short_summary', value: article.article_short_summary },
+                                            { label: 'Overview', field: 'article_overview', value: article.article_overview },
+                                            { label: 'Background Story', field: 'article_background_story', value: article.article_background_story },
+                                            { label: 'Problems Solved', field: 'article_problems_solved', value: article.article_problems_solved },
+                                            { label: 'Created At', field: 'created_at', value: formatDate(article.created_at) }
+                                          ].map(({ label, field, value }) => (
+                                            <div key={field} className="flex justify-between items-start group">
+                                              <span className="text-sm text-gray-600 mr-2">{label}:</span>
+                                              {articleEditing.contactId === article.article_link && articleEditing.field === field ? (
+                                                <div className="flex items-center space-x-2">
+                                                  <textarea
+                                                    value={articleEditing.value}
+                                                    onChange={(e) => setArticleEditing(prev => ({ ...prev, value: e.target.value }))}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 w-40 h-16 resize-none text-right"
+                                                  />
+                                                  <div className="flex flex-col space-y-1">
+                                                    <button onClick={saveArticleEdit} className="text-green-600 hover:text-green-800">
+                                                      <Save className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={cancelArticleEdit} className="text-red-600 hover:text-red-800">
+                                                      <X className="w-4 h-4" />
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-start space-x-2 flex-1">
+                                                  <span className="text-sm text-gray-900 text-right flex-1">
+                                                    {formatFieldValue(value)}
+                                                  </span>
+                                                  {field !== 'created_at' && (
+                                                    <button
+                                                      onClick={() => startArticleEditing(article.article_link, field, field === 'created_at' ? article.created_at || '' : value || '')}
+                                                      className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                                                    >
+                                                      <Edit className="w-4 h-4" />
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {articlesLoading && (
+            <div className="px-6 py-12 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500">Loading articles...</p>
+            </div>
+          )}
+
+          {!articlesLoading && filteredArticleGroups.length === 0 && (
+            <div className="px-6 py-12 text-center">
+              <p className="text-gray-500">No articles found matching your criteria.</p>
             </div>
           )}
         </div>
