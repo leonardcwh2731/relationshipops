@@ -9,10 +9,7 @@ import {
   MessageSquare,
   Building,
   Globe,
-  ExternalLink,
-  Edit,
-  Trash2,
-  Eye
+  ExternalLink
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -54,9 +51,7 @@ interface Message {
 
 const App: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<string>('');
-  const [selectedArticleClient, setSelectedArticleClient] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
   
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
@@ -69,44 +64,18 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadClients = async () => {
       try {
-        setError('');
-        console.log('Loading clients...');
-        
         const { data, error } = await supabase
           .from('client_details')
           .select('email_address, full_name, first_name, last_name')
           .order('full_name');
 
-        console.log('Clients response:', { data, error });
-
-        if (error) {
-          console.error('Supabase error:', error);
-          throw error;
-        }
-        
+        if (error) throw error;
         setClients(data || []);
         if (data && data.length > 0) {
           setSelectedClient(data[0].email_address);
-          setSelectedArticleClient(data[0].email_address);
-        } else {
-          // Set mock data if no real data
-          const mockClients = [
-            { email_address: 'demo@example.com', full_name: 'Demo User', first_name: 'Demo', last_name: 'User' }
-          ];
-          setClients(mockClients);
-          setSelectedClient('demo@example.com');
-          setSelectedArticleClient('demo@example.com');
         }
       } catch (error) {
         console.error('Error loading clients:', error);
-        setError('Failed to load clients. Using demo data.');
-        // Set mock data
-        const mockClients = [
-          { email_address: 'demo@example.com', full_name: 'Demo User', first_name: 'Demo', last_name: 'User' }
-        ];
-        setClients(mockClients);
-        setSelectedClient('demo@example.com');
-        setSelectedArticleClient('demo@example.com');
       }
     };
 
@@ -119,9 +88,7 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       setLoading(true);
-      setError('');
       try {
-        console.log('Loading data for client:', selectedClient);
         await Promise.all([
           loadContacts(),
           loadValueAddArticles(),
@@ -130,26 +97,16 @@ const App: React.FC = () => {
         ]);
       } catch (error) {
         console.error('Error loading data:', error);
-        setError('Failed to load some data. Please check your connection.');
       } finally {
         setLoading(false);
       }
     };
 
-    // Add a small delay to ensure proper loading
-    const timer = setTimeout(loadData, 100);
-    return () => clearTimeout(timer);
+    loadData();
   }, [selectedClient]);
-
-  // Load articles based on selected article client
-  useEffect(() => {
-    if (!selectedArticleClient) return;
-    loadValueAddArticles();
-  }, [selectedArticleClient]);
 
   const loadContacts = async () => {
     try {
-      console.log('Loading contacts for:', selectedClient);
       const { data, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*')
@@ -157,29 +114,24 @@ const App: React.FC = () => {
         .order('last_interaction_date', { ascending: false });
 
       if (error) throw error;
-      console.log('Contacts loaded:', data?.length || 0);
       setContacts(data || []);
     } catch (error) {
       console.error('Error loading contacts:', error);
-      setContacts([]);
     }
   };
 
   const loadValueAddArticles = async () => {
     try {
-      console.log('Loading articles for:', selectedArticleClient);
       const { data, error } = await supabase
         .from('potential_value_add')
         .select('*')
-        .eq('client_email_address', selectedArticleClient)
+        .eq('client_email_address', selectedClient)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      console.log('Articles loaded:', data?.length || 0);
       setValueAddArticles(data || []);
     } catch (error) {
       console.error('Error loading value add articles:', error);
-      setValueAddArticles([]);
     }
   };
 
@@ -195,7 +147,6 @@ const App: React.FC = () => {
       setMeetings(data || []);
     } catch (error) {
       console.error('Error loading meetings:', error);
-      setMeetings([]);
     }
   };
 
@@ -212,41 +163,14 @@ const App: React.FC = () => {
       setMessages(data || []);
     } catch (error) {
       console.error('Error loading messages:', error);
-      setMessages([]);
     }
   };
 
-  const handleDeleteArticle = async (articleLink: string) => {
-    if (!confirm('Are you sure you want to delete this article?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('potential_value_add')
-        .delete()
-        .eq('article_link', articleLink);
-
-      if (error) throw error;
-      
-      // Reload articles
-      loadValueAddArticles();
-    } catch (error) {
-      console.error('Error deleting article:', error);
-      alert('Failed to delete article');
-    }
-  };
-
-  const clientOptions = [
-    {
-      value: 'all',
-      label: 'All Client Emails',
-      icon: <User className="w-4 h-4" />
-    },
-    ...clients.map(client => ({
-      value: client.email_address,
-      label: client.email_address,
-      icon: <Mail className="w-4 h-4" />
-    }))
-  ];
+  const clientOptions = clients.map(client => ({
+    value: client.email_address,
+    label: `${client.full_name} (${client.email_address})`,
+    icon: <Mail className="w-4 h-4" />
+  }));
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
@@ -260,13 +184,7 @@ const App: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
-          {error && (
-            <p className="text-red-600 text-sm mt-2">{error}</p>
-          )}
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -278,17 +196,17 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <h1 className="text-3xl font-bold text-gray-900">RelationshipOps Dashboard</h1>
+            <div className="w-64">
+              <CustomDropdown
+                value={selectedClient}
+                onChange={setSelectedClient}
+                options={clientOptions}
+                placeholder="Select a client"
+              />
+            </div>
           </div>
         </div>
       </div>
-
-      {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-            {error}
-          </div>
-        </div>
-      )}
 
       {/* Dashboard Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -337,114 +255,64 @@ const App: React.FC = () => {
 
         {/* Content Sections */}
         <div className="space-y-8">
-          {/* Dormant Contacts Section */}
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Dormant Contacts</h2>
-              <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
-            </div>
-
-            <div className="p-6">
-              <div className="mb-4">
-                <CustomDropdown
-                  value={selectedClient}
-                  onChange={setSelectedClient}
-                  options={clientOptions}
-                  placeholder="Select client"
-                  className="w-64"
-                />
-              </div>
-
-              <div className="space-y-2">
-                {clients.map((client, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-gray-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">{client.email_address}</div>
-                        <div className="text-sm text-gray-500">{contacts.length} contacts • Leads Above 80: 
-                          <span className="inline-flex items-center ml-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {contacts.filter(c => (c.total_lead_score || 0) > 80).length}
-                          </span>
-                        </div>
-                      </div>
+          {/* Dormant Contacts */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <User className="w-6 h-6 mr-2 text-blue-500" />
+              Dormant Contacts
+            </h2>
+            <div className="space-y-4">
+              {contacts.slice(0, 5).map((contact, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{contact.full_name}</h4>
+                      <p className="text-sm text-gray-600">{contact.job_title} at {contact.company_name}</p>
+                      <p className="text-xs text-gray-500 mt-1">Last interaction: {formatDate(contact.last_interaction_date || '')}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Score: {contact.total_lead_score || 0}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-              
+                </div>
+              ))}
               {contacts.length === 0 && (
                 <p className="text-center text-gray-500 py-8">No dormant contacts found</p>
               )}
             </div>
           </div>
 
-          {/* Potential Value Add Section */}
-          <div className="bg-black rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-700">
-              <h2 className="text-lg font-semibold text-white">Potential Value Add</h2>
-              <p className="text-sm text-gray-300">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
-            </div>
-
-            <div className="p-6">
-              <div className="mb-4">
-                <CustomDropdown
-                  value={selectedArticleClient}
-                  onChange={setSelectedArticleClient}
-                  options={clientOptions}
-                  placeholder="Select client"
-                  className="w-64"
-                />
-              </div>
-
-              <div className="space-y-2">
-                {valueAddArticles.map((article, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border border-gray-600 rounded-lg hover:bg-gray-800 transition-colors">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="text-gray-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="font-medium text-white">{article.article_headline}</div>
-                        <div className="text-sm text-gray-300 mt-1">{article.article_short_summary}</div>
-                        <div className="text-xs text-gray-400 mt-2">
-                          Source: <a href={article.article_link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">{article.article_link}</a>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-4 ml-4">
-                      <button 
-                        className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        className="p-2 text-gray-400 hover:text-yellow-400 transition-colors"
-                        title="Edit Article"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteArticle(article.article_link)}
-                        className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                        title="Delete Article"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+          {/* Value Add Articles */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <FileText className="w-6 h-6 mr-2 text-purple-500" />
+              Potential Value Add Articles
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {valueAddArticles.slice(0, 6).map((article, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <h4 className="font-medium text-gray-900 mb-2 line-clamp-2">{article.article_headline}</h4>
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-3">{article.article_short_summary}</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{formatDate(article.created_at)}</span>
+                    <a
+                      href={article.article_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Read
+                    </a>
                   </div>
-                ))}
-              </div>
-              
+                </div>
+              ))}
               {valueAddArticles.length === 0 && (
-                <p className="text-center text-gray-400 py-8">No value add articles found</p>
+                <div className="col-span-full text-center text-gray-500 py-8">
+                  No value add articles found
+                </div>
               )}
             </div>
           </div>
