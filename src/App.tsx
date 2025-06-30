@@ -11,7 +11,9 @@ import {
   ChevronLeft,
   Save,
   X,
-  Pencil
+  Pencil,
+  Lock,
+  LogOut
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -29,6 +31,11 @@ interface ContactCountByEmail {
 }
 
 const App: React.FC = () => {
+  // Authentication states
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
@@ -56,9 +63,15 @@ const App: React.FC = () => {
   const [contactCountsByEmail, setContactCountsByEmail] = useState<ContactCountByEmail>({});
   const [uniqueClientEmails, setUniqueClientEmails] = useState<string[]>([]);
 
-  // Load clients and contacts from Supabase
+  // Check authentication on load
   useEffect(() => {
-    loadData();
+    const authStatus = localStorage.getItem('relationshipops_auth');
+    if (authStatus === 'authenticated') {
+      setIsAuthenticated(true);
+      loadData();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   // Reset to first page when search or filter changes
@@ -82,6 +95,26 @@ const App: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showContactDetails]);
+
+  // Authentication functions
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple hardcoded authentication - replace with proper auth system
+    if (loginForm.username === 'admin' && loginForm.password === 'relationshipops2024') {
+      setIsAuthenticated(true);
+      localStorage.setItem('relationshipops_auth', 'authenticated');
+      setLoginError('');
+      loadData();
+    } else {
+      setLoginError('Invalid username or password');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('relationshipops_auth');
+    setLoginForm({ username: '', password: '' });
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -339,23 +372,23 @@ const App: React.FC = () => {
     return acc;
   }, {} as Record<string, Contact[]>);
 
-  // Calculate metrics
+  // Calculate metrics - these stay constant regardless of search/filter
   const metricsData = [
     {
       title: 'Account Groups',
-      value: totalAccounts
+      value: uniqueClientEmails.length // Total unique account groups
     },
     {
       title: 'Total Contacts', 
-      value: totalContactsCount // Use the total count from Supabase
+      value: totalContactsCount // Total count from database, not filtered
     },
     {
       title: 'Relevant Leads',
-      value: filteredContacts.filter(contact => isRelevantLead(contact)).length
+      value: contacts.filter(contact => isRelevantLead(contact)).length // From all contacts, not filtered
     },
     {
       title: 'Sent Contacts',
-      value: sentContactsCount // Use the sent contacts count from Supabase
+      value: sentContactsCount // Total sent contacts from database
     }
   ];
 
@@ -690,6 +723,76 @@ const App: React.FC = () => {
     );
   };
 
+  // Login screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <div className="mx-auto h-12 w-12 flex items-center justify-center bg-black rounded-full">
+              <Lock className="h-6 w-6 text-white" />
+            </div>
+            <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+              RelationshipOps Dashboard
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              Powered By VeraOps - Secure Access Required
+            </p>
+          </div>
+          <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  required
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter password"
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="text-red-600 text-sm text-center">
+                {loginError}
+              </div>
+            )}
+
+            <div>
+              <button
+                type="submit"
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                Sign In
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center">
@@ -716,6 +819,13 @@ const App: React.FC = () => {
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
+              </button>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </button>
             </div>
           </div>
@@ -933,7 +1043,11 @@ const App: React.FC = () => {
               </div>
 
               <div className="p-6">
-                <div className="grid grid-cols-4 gap-8">
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1.3fr 2fr', // Lead Info: 1 unit, Company Info: 1.3 units (slightly larger), Daily Digest: 2 units
+                  gap: '2rem'
+                }}>
                   {/* Lead Information */}
                   <div>
                     <h4 className="text-sm font-medium text-blue-600 mb-4 flex items-center">
@@ -957,7 +1071,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Company Information */}
+                  {/* Company Information - Now with more space */}
                   <div>
                     <h4 className="text-sm font-medium text-green-600 mb-4 flex items-center">
                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
@@ -976,8 +1090,8 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Daily Digest Information - Takes 2 columns, single row layout */}
-                  <div className="col-span-2">
+                  {/* Daily Digest Information - Single row layout */}
+                  <div>
                     <h4 className="text-sm font-medium text-purple-600 mb-4 flex items-center">
                       <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
                       Daily Digest Information
