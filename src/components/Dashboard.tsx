@@ -58,23 +58,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
     fetchAvailableEmails();
   }, []);
 
+  // Fetch all contacts with pagination to handle large datasets
+  const fetchAllContacts = async (emailFilter?: string) => {
+    const allContacts: Contact[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        let query = supabase
+          .from('icp_contacts_tracking_in_progress')
+          .select('*')
+          .range(offset, offset + batchSize - 1)
+          .order('total_lead_score', { ascending: false, nullsLast: true });
+
+        if (emailFilter && emailFilter !== 'all') {
+          query = query.eq('client_email', emailFilter);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allContacts.push(...data);
+          offset += batchSize;
+          
+          // If we got less than batchSize records, we've reached the end
+          if (data.length < batchSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      } catch (error) {
+        console.error(`Error fetching contacts batch starting at ${offset}:`, error);
+        hasMore = false;
+      }
+    }
+
+    return allContacts;
+  };
+
   // Fetch contacts
   const fetchContacts = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('*');
+      console.log(`Fetching contacts for email filter: ${selectedEmail}`);
+      
+      const allContacts = await fetchAllContacts(selectedEmail);
+      console.log(`Fetched ${allContacts.length} total contacts from database`);
 
-      if (selectedEmail !== 'all') {
-        query = query.eq('client_email', selectedEmail);
-      }
-
-      const { data, error } = await query.order('total_lead_score', { ascending: false, nullsLast: true });
-
-      if (error) throw error;
-
-      let filteredContacts = data || [];
+      let filteredContacts = allContacts;
 
       // Apply search filter
       if (searchTerm) {
@@ -89,6 +125,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
         );
       }
 
+      console.log(`Final filtered contacts: ${filteredContacts.length}`);
       setContacts(filteredContacts);
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (error) {
