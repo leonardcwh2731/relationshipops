@@ -8,10 +8,10 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Edit3,
   ChevronLeft,
   Save,
-  X
+  X,
+  Pencil
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -22,6 +22,10 @@ interface Client {
   full_name: string;
   first_name: string;
   last_name: string;
+}
+
+interface ContactCountByEmail {
+  [email: string]: number;
 }
 
 const App: React.FC = () => {
@@ -45,6 +49,7 @@ const App: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [totalContactsCount, setTotalContactsCount] = useState<number>(0);
+  const [contactCountsByEmail, setContactCountsByEmail] = useState<ContactCountByEmail>({});
 
   // Load clients and contacts from Supabase
   useEffect(() => {
@@ -59,7 +64,7 @@ const App: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadClients(), loadContacts(), loadTotalContactsCount()]);
+      await Promise.all([loadClients(), loadContacts(), loadTotalContactsCount(), loadContactCountsByEmail()]);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { 
         hour12: false, 
         hour: '2-digit', 
@@ -70,6 +75,28 @@ const App: React.FC = () => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadContactCountsByEmail = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('client_email');
+
+      if (error) throw error;
+      
+      // Count contacts per email
+      const counts: ContactCountByEmail = {};
+      data?.forEach(contact => {
+        const email = contact.client_email || 'unknown';
+        counts[email] = (counts[email] || 0) + 1;
+      });
+      
+      setContactCountsByEmail(counts);
+    } catch (error) {
+      console.error('Error loading contact counts by email:', error);
+      setContactCountsByEmail({});
     }
   };
 
@@ -305,12 +332,29 @@ const App: React.FC = () => {
     setEditingFields(newEditingFields);
   };
 
-  const handleSaveField = (fieldName: string) => {
+  const handleSaveField = async (fieldName: string) => {
     const newEditingFields = new Set(editingFields);
     newEditingFields.delete(fieldName);
     setEditingFields(newEditingFields);
-    // Here you would typically save to the database
-    console.log('Saving field:', fieldName, 'Value:', editedContact?.[fieldName as keyof Contact]);
+    
+    // Save to database
+    if (editedContact && selectedContact) {
+      try {
+        const { error } = await supabase
+          .from('icp_contacts_tracking_in_progress')
+          .update({ [fieldName]: editedContact[fieldName as keyof Contact] })
+          .eq('linkedin_profile_url', selectedContact.linkedin_profile_url);
+
+        if (error) throw error;
+        
+        // Update the selected contact
+        setSelectedContact({ ...selectedContact, [fieldName]: editedContact[fieldName as keyof Contact] });
+        
+        console.log('Field saved successfully:', fieldName);
+      } catch (error) {
+        console.error('Error saving field:', error);
+      }
+    }
   };
 
   const handleCancelEdit = (fieldName: string) => {
@@ -482,17 +526,35 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="flex items-center justify-end w-full">
-              {isLink ? (
+              {isLink && fieldName === 'work_email' ? (
+                <a 
+                  href={`mailto:${displayValue}`}
+                  className="text-sm text-blue-600 text-right hover:underline"
+                >
+                  {displayValue}
+                </a>
+              ) : isLink && fieldName === 'company_domain' ? (
+                <a 
+                  href={`https://${displayValue}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 text-right hover:underline"
+                >
+                  {displayValue}
+                </a>
+              ) : isLink ? (
                 <span className="text-sm text-blue-600 text-right">{displayValue}</span>
               ) : (
                 <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''}`}>
                   {displayValue}
                 </span>
               )}
-              <Edit3 
-                className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" 
+              <button
                 onClick={() => handleEditField(fieldName)}
-              />
+                className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600"
+              >
+                <Pencil className="w-3 h-3 text-gray-400" />
+              </button>
             </div>
           )}
         </div>
@@ -574,11 +636,6 @@ const App: React.FC = () => {
             <h2 className="text-xl font-semibold text-gray-900">Contacts by Account Email</h2>
             <p className="text-sm text-gray-500 mt-1">
               Sorted by lead score (highest first) • Auto-refreshes every 30 seconds
-              {totalAccounts > 0 && (
-                <span className="ml-2">
-                  • Showing {paginatedAccountEmails.length} of {totalAccounts} account groups
-                </span>
-              )}
             </p>
           </div>
 
@@ -586,6 +643,7 @@ const App: React.FC = () => {
             {Object.entries(paginatedGroupedContacts).map(([email, emailContacts]) => {
               const isExpanded = expandedAccounts.has(email);
               const relevantLeadsCount = emailContacts.filter(contact => isRelevantLead(contact)).length;
+              const totalContactsForEmail = contactCountsByEmail[email] || emailContacts.length;
               
               return (
                 <div key={email} className="p-4">
@@ -601,7 +659,7 @@ const App: React.FC = () => {
                       )}
                       <span className="font-medium text-gray-900">{email}</span>
                       <span className="ml-2 text-sm text-gray-500">
-                        {emailContacts.length} contacts • Relevant Leads: 
+                        {totalContactsForEmail} contacts • Relevant Leads: 
                         <span className="ml-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                           {relevantLeadsCount}
                         </span>
@@ -611,22 +669,22 @@ const App: React.FC = () => {
 
                   {isExpanded && (
                     <div className="mt-4 overflow-x-auto">
-                      <table className="min-w-full">
+                      <table className="min-w-full table-fixed">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Contact
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Job Title
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Company
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Score
                             </th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Actions
                             </th>
                           </tr>
@@ -636,34 +694,45 @@ const App: React.FC = () => {
                             .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
                             .map((contact) => (
                             <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
-                              <td className="px-3 py-4 w-1/5">
+                              <td className="w-1/5 px-2 py-4">
                                 <div className="min-w-0">
                                   <div className="text-sm font-medium text-gray-900 truncate">{contact.full_name}</div>
-                                  <div className="text-sm text-blue-600 truncate">{contact.work_email}</div>
+                                  <a 
+                                    href={`mailto:${contact.work_email}`}
+                                    className="text-sm text-blue-600 truncate hover:underline"
+                                  >
+                                    {contact.work_email}
+                                  </a>
                                 </div>
                               </td>
-                              <td className="px-3 py-4 w-1/5">
+                              <td className="w-1/5 px-2 py-4">
                                 <div className="text-sm text-gray-900 truncate">
                                   {contact.job_title}
                                 </div>
                               </td>
-                              <td className="px-3 py-4 w-1/5">
+                              <td className="w-1/5 px-2 py-4">
                                 <div className="min-w-0">
                                   <div className="text-sm text-gray-900 truncate">{contact.company_name}</div>
-                                  <div className="text-sm text-blue-600 truncate">{contact.company_domain}</div>
+                                  <a 
+                                    href={`https://${contact.company_domain}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-blue-600 truncate hover:underline"
+                                  >
+                                    {contact.company_domain}
+                                  </a>
                                 </div>
                               </td>
-                              <td className="px-3 py-4 w-1/5">
+                              <td className="w-1/5 px-2 py-4">
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {contact.total_lead_score || 0}
                                 </span>
                               </td>
-                              <td className="px-3 py-4 w-1/5">
+                              <td className="w-1/5 px-2 py-4">
                                 <button
                                   onClick={() => handleShowDetails(contact)}
-                                  className="text-blue-600 hover:text-blue-900 flex items-center text-sm"
+                                  className="text-black hover:text-gray-700 text-sm whitespace-nowrap"
                                 >
-                                  <ChevronRight className="w-4 h-4 mr-1" />
                                   Show Details
                                 </button>
                               </td>
@@ -705,7 +774,12 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{selectedContact.full_name}</h3>
-                    <p className="text-sm text-blue-600">{selectedContact.work_email}</p>
+                    <a 
+                      href={`mailto:${selectedContact.work_email}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      {selectedContact.work_email}
+                    </a>
                   </div>
                   <button
                     onClick={handleHideDetails}
@@ -755,7 +829,12 @@ const App: React.FC = () => {
                       <EditableField label="Company Industry" fieldName="company_industry" value={selectedContact.company_industry} />
                       <EditableField label="Company Staff Range" fieldName="company_staff_count_range" value={selectedContact.company_staff_count_range} />
                       <div className="pt-4">
-                        <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center group">
+                        <a 
+                          href={`https://${selectedContact.company_domain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm flex items-center group"
+                        >
                           <ExternalLink className="w-4 h-4 mr-1" />
                           View Company
                         </a>
