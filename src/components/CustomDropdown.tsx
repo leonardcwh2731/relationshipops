@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, User, Mail } from 'lucide-react';
 
 interface DropdownOption {
   value: string;
   label: string;
   icon?: React.ReactNode;
+  isHeader?: boolean;
 }
 
 interface CustomDropdownProps {
@@ -39,6 +40,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   }, []);
 
   const selectedOption = options.find(option => option.value === value);
+  const displayLabel = value === 'all' ? 'All Account Emails' : selectedOption?.label || placeholder;
 
   const handleSelect = (optionValue: string) => {
     onChange(optionValue);
@@ -51,16 +53,12 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 text-left bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 flex items-center justify-between"
+        className="w-full px-4 py-3 text-left bg-white border-2 border-blue-400 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 flex items-center justify-between"
       >
         <div className="flex items-center flex-1 min-w-0 pr-2">
-          {selectedOption?.icon && (
-            <span className="mr-2 text-gray-500 flex-shrink-0">
-              {selectedOption.icon}
-            </span>
-          )}
+          <User className="mr-3 text-gray-500 flex-shrink-0 w-5 h-5" />
           <span className="text-sm font-medium text-gray-900 overflow-hidden text-ellipsis whitespace-nowrap">
-            {selectedOption ? selectedOption.label : placeholder}
+            {displayLabel}
           </span>
         </div>
         <ChevronDown 
@@ -72,22 +70,34 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden max-h-60 overflow-y-auto">
-          <div className="py-1">
-            {options.map((option) => (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="py-2">
+            {/* All Account Emails Header Option */}
+            <button
+              onClick={() => handleSelect('all')}
+              className={`w-full px-4 py-3 text-left transition-colors duration-150 flex items-center ${
+                value === 'all' ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50'
+              }`}
+            >
+              <User className="mr-3 text-gray-500 w-5 h-5 flex-shrink-0" />
+              <span className="text-sm font-medium text-gray-900">
+                All Account Emails
+              </span>
+            </button>
+
+            {/* Individual Email Options */}
+            {options.filter(option => !option.isHeader).map((option) => (
               <button
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
-                className="w-full px-4 py-3 text-left text-gray-900 hover:bg-gray-50 transition-colors duration-150 flex items-center group"
-                title={option.label} // Add tooltip for full email
+                className={`w-full px-4 py-3 text-left transition-colors duration-150 flex items-center ${
+                  value === option.value ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50'
+                }`}
+                title={option.value} // Show full email on hover
               >
-                {option.icon && (
-                  <span className="mr-3 text-gray-500 group-hover:text-gray-700 transition-colors duration-150 flex-shrink-0">
-                    {option.icon}
-                  </span>
-                )}
-                <span className="text-sm font-medium block w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                  {option.label}
+                <Mail className="mr-3 text-gray-500 w-5 h-5 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-900 block w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                  {option.value}
                 </span>
               </button>
             ))}

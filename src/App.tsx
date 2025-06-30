@@ -50,7 +50,7 @@ interface Message {
 }
 
 const App: React.FC = () => {
-  const [selectedClient, setSelectedClient] = useState<string>('');
+  const [selectedClient, setSelectedClient] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   
   // Data states
@@ -78,9 +78,6 @@ const App: React.FC = () => {
     ];
     
     setClients(mockClients);
-    if (mockClients.length > 0) {
-      setSelectedClient(mockClients[0].email_address);
-    }
 
     // Mock data
     setContacts([
@@ -97,6 +94,20 @@ const App: React.FC = () => {
         company_name: 'StartupXYZ',
         last_interaction_date: '2024-01-10',
         total_lead_score: 72
+      },
+      {
+        full_name: 'Mike Wilson',
+        job_title: 'CTO',
+        company_name: 'InnovaCorp',
+        last_interaction_date: '2024-01-08',
+        total_lead_score: 91
+      },
+      {
+        full_name: 'Emily Davis',
+        job_title: 'Head of Sales',
+        company_name: 'GrowthTech',
+        last_interaction_date: '2024-01-05',
+        total_lead_score: 78
       }
     ]);
 
@@ -114,6 +125,20 @@ const App: React.FC = () => {
         article_short_summary: 'Exploring the latest tools and technologies enabling effective remote work.',
         client_full_name: 'Leonard Chen',
         created_at: '2024-01-18'
+      },
+      {
+        article_headline: 'Scaling Engineering Teams in 2024',
+        article_link: 'https://example.com/article3',
+        article_short_summary: 'Best practices for growing and managing engineering teams in the modern workplace.',
+        client_full_name: 'All Clients',
+        created_at: '2024-01-17'
+      },
+      {
+        article_headline: 'Data Privacy Regulations Update',
+        article_link: 'https://example.com/article4',
+        article_short_summary: 'Latest changes in data privacy laws and their impact on business operations.',
+        client_full_name: 'All Clients',
+        created_at: '2024-01-16'
       }
     ]);
 
@@ -123,6 +148,22 @@ const App: React.FC = () => {
         client_full_name: 'Peter Kang',
         meeting_summary: 'Product Demo and Q&A Session',
         start_date_time: '2024-01-25T10:00:00Z',
+        attendee_emails: 'peter.kang@barrelny.com',
+        platform: 'Zoom'
+      },
+      {
+        meeting_id: 'meeting2',
+        client_full_name: 'Leonard Chen',
+        meeting_summary: 'Strategic Partnership Discussion',
+        start_date_time: '2024-01-23T14:00:00Z',
+        attendee_emails: 'leonard@ontenlabs.com',
+        platform: 'Google Meet'
+      },
+      {
+        meeting_id: 'meeting3',
+        client_full_name: 'Peter Kang',
+        meeting_summary: 'Technical Implementation Review',
+        start_date_time: '2024-01-22T09:00:00Z',
         attendee_emails: 'peter.kang@barrelny.com',
         platform: 'Zoom'
       }
@@ -137,6 +178,24 @@ const App: React.FC = () => {
         message_date: '2024-01-22T14:30:00Z',
         platform: 'Email',
         client_full_name: 'Peter Kang'
+      },
+      {
+        message_id: 'msg2',
+        subject: 'Partnership Proposal Review',
+        from_name: 'Leonard Chen',
+        to_name: 'Business Development',
+        message_date: '2024-01-21T11:15:00Z',
+        platform: 'Email',
+        client_full_name: 'Leonard Chen'
+      },
+      {
+        message_id: 'msg3',
+        subject: 'Technical Documentation Request',
+        from_name: 'Peter Kang',
+        to_name: 'Engineering Team',
+        message_date: '2024-01-20T16:45:00Z',
+        platform: 'Email',
+        client_full_name: 'Peter Kang'
       }
     ]);
   }, []);
@@ -146,6 +205,32 @@ const App: React.FC = () => {
     label: `${client.full_name} (${client.email_address})`,
     icon: <Mail className="w-4 h-4" />
   }));
+
+  // Filter data based on selected client
+  const getFilteredData = (data: any[], clientField: string) => {
+    if (selectedClient === 'all') return data;
+    return data.filter(item => {
+      const clientEmail = item[clientField];
+      return clientEmail === selectedClient;
+    });
+  };
+
+  const filteredContacts = getFilteredData(contacts, 'client_email');
+  const filteredValueAddArticles = selectedClient === 'all' 
+    ? valueAddArticles 
+    : valueAddArticles.filter(article => 
+        article.client_full_name === clients.find(c => c.email_address === selectedClient)?.full_name
+      );
+  const filteredMeetings = selectedClient === 'all'
+    ? meetings
+    : meetings.filter(meeting => 
+        clients.find(c => c.email_address === selectedClient)?.full_name === meeting.client_full_name
+      );
+  const filteredMessages = selectedClient === 'all'
+    ? messages
+    : messages.filter(message => 
+        clients.find(c => c.email_address === selectedClient)?.full_name === message.client_full_name
+      );
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
@@ -163,7 +248,7 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <h1 className="text-3xl font-bold text-gray-900">RelationshipOps Dashboard</h1>
-            <div className="w-64">
+            <div className="w-80">
               <CustomDropdown
                 value={selectedClient}
                 onChange={setSelectedClient}
@@ -184,7 +269,7 @@ const App: React.FC = () => {
               <User className="w-8 h-8 text-blue-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Dormant Contacts</p>
-                <p className="text-2xl font-bold text-gray-900">{contacts.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredContacts.length}</p>
               </div>
             </div>
           </div>
@@ -194,7 +279,7 @@ const App: React.FC = () => {
               <FileText className="w-8 h-8 text-purple-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Value Add Articles</p>
-                <p className="text-2xl font-bold text-gray-900">{valueAddArticles.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredValueAddArticles.length}</p>
               </div>
             </div>
           </div>
@@ -204,7 +289,7 @@ const App: React.FC = () => {
               <Trophy className="w-8 h-8 text-green-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Meetings Booked</p>
-                <p className="text-2xl font-bold text-gray-900">{meetings.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredMeetings.length}</p>
               </div>
             </div>
           </div>
@@ -214,7 +299,7 @@ const App: React.FC = () => {
               <Activity className="w-8 h-8 text-orange-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Recent Messages</p>
-                <p className="text-2xl font-bold text-gray-900">{messages.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredMessages.length}</p>
               </div>
             </div>
           </div>
@@ -229,7 +314,7 @@ const App: React.FC = () => {
               Dormant Contacts
             </h2>
             <div className="space-y-4">
-              {contacts.slice(0, 5).map((contact, index) => (
+              {filteredContacts.slice(0, 5).map((contact, index) => (
                 <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -245,6 +330,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {filteredContacts.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No dormant contacts found</p>
+              )}
             </div>
           </div>
 
@@ -255,7 +343,7 @@ const App: React.FC = () => {
               Potential Value Add Articles
             </h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {valueAddArticles.slice(0, 6).map((article, index) => (
+              {filteredValueAddArticles.slice(0, 6).map((article, index) => (
                 <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <h4 className="font-medium text-gray-900 mb-2 line-clamp-2">{article.article_headline}</h4>
                   <p className="text-sm text-gray-600 mb-3 line-clamp-3">{article.article_short_summary}</p>
@@ -273,6 +361,11 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {filteredValueAddArticles.length === 0 && (
+                <div className="col-span-full text-center text-gray-500 py-8">
+                  No value add articles found
+                </div>
+              )}
             </div>
           </div>
 
@@ -283,7 +376,7 @@ const App: React.FC = () => {
               Client Wins (Recent Meetings)
             </h2>
             <div className="space-y-4">
-              {meetings.slice(0, 5).map((meeting, index) => (
+              {filteredMeetings.slice(0, 5).map((meeting, index) => (
                 <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -303,6 +396,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {filteredMeetings.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No meetings found</p>
+              )}
             </div>
           </div>
 
@@ -313,7 +409,7 @@ const App: React.FC = () => {
               Recent Activity
             </h2>
             <div className="space-y-4">
-              {messages.slice(0, 5).map((message, index) => (
+              {filteredMessages.slice(0, 5).map((message, index) => (
                 <div key={index} className="border-l-4 border-blue-200 pl-4 py-2">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -329,6 +425,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {filteredMessages.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No recent activity found</p>
+              )}
             </div>
           </div>
         </div>
