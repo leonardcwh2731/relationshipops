@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ContactsList } from './ContactsList';
-import { StatsCards } from './StatsCards';
 import { Header } from './Header';
+import { MetricsCards } from './MetricsCards';
+import { SearchAndFilter } from './SearchAndFilter';
+import { ContactsTable } from './ContactsTable';
 import { supabase } from '../lib/supabase';
 import { Contact } from '../types/Contact';
 import { User } from '../App';
@@ -14,12 +15,10 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedEmail, setSelectedEmail] = useState<string>('all');
   const [availableEmails, setAvailableEmails] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalContacts, setTotalContacts] = useState(0);
-  const [totalContactsForEmail, setTotalContactsForEmail] = useState(0);
-  const contactsPerPage = 50;
+  const [lastUpdated, setLastUpdated] = useState<string>('');
 
   // Fetch available client emails
   useEffect(() => {
@@ -27,8 +26,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
       try {
         const { data, error } = await supabase
           .from('client_details')
-          .select('email_address, full_name')
-          .order('full_name', { ascending: true });
+          .select('email_address')
+          .order('email_address', { ascending: true });
 
         if (error) throw error;
 
@@ -42,105 +41,99 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
     fetchAvailableEmails();
   }, []);
 
-  // Fetch contacts and total counts
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Get total contacts count (all contacts regardless of filter)
-        const { count: allContactsCount, error: countAllError } = await supabase
-          .from('icp_contacts_tracking_in_progress')
-          .select('*', { count: 'exact', head: true });
-
-        if (countAllError) throw countAllError;
-        setTotalContacts(allContactsCount || 0);
-
-        // Build query for filtered contacts
-        let query = supabase
-          .from('icp_contacts_tracking_in_progress')
-          .select(`
-            *,
-            onboarding_google_tokens!left(account_email)
-          `);
-
-        // Apply email filter if not 'all'
-        if (selectedEmail !== 'all') {
-          query = query.eq('client_email', selectedEmail);
-        }
-
-        // Get count for current filter
-        const { count: filteredCount, error: countFilteredError } = await query
-          .select('*', { count: 'exact', head: true });
-
-        if (countFilteredError) throw countFilteredError;
-        setTotalContactsForEmail(filteredCount || 0);
-
-        // Get paginated results
-        const startIndex = (currentPage - 1) * contactsPerPage;
-        const endIndex = startIndex + contactsPerPage - 1;
-
-        const { data: contactsData, error: contactsError } = await query
-          .order('created_at', { ascending: false })
-          .range(startIndex, endIndex);
-
-        if (contactsError) throw contactsError;
-
-        // Transform data to include account_email
-        const transformedContacts = contactsData?.map(contact => ({
-          ...contact,
-          account_email: contact.onboarding_google_tokens?.account_email || contact.client_email
-        })) || [];
-
-        setContacts(transformedContacts);
-      } catch (error) {
-        console.error('Error fetching contacts:', error);
-        setContacts([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [selectedEmail, currentPage]);
-
-  const handleSignOut = async () => {
+  // Fetch contacts
+  const fetchContacts = async () => {
+    setLoading(true);
     try {
-      await supabase.auth.signOut();
-      onSignOut();
+      let query = supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*');
+
+      if (selectedEmail !== 'all') {
+        query = query.eq('client_email', selectedEmail);
+      }
+
+      const { data, error } = await query.order('total_lead_score', { ascending: false, nullsLast: true });
+
+      if (error) throw error;
+
+      let filteredContacts = data || [];
+
+      // Apply search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        filteredContacts = filteredContacts.filter(contact =>
+          contact.full_name?.toLowerCase().includes(searchLower) ||
+          contact.first_name?.toLowerCase().includes(searchLower) ||
+          contact.last_name?.toLowerCase().includes(searchLower) ||
+          contact.company_name?.toLowerCase().includes(searchLower) ||
+          contact.job_title?.toLowerCase().includes(searchLower) ||
+          contact.work_email?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      setContacts(filteredContacts);
+      setLastUpdated(new Date().toLocaleTimeString());
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Error fetching contacts:', error);
+      setContacts([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const totalPages = Math.ceil(totalContactsForEmail / contactsPerPage);
+  useEffect(() => {
+    fetchContacts();
+  }, [selectedEmail, searchTerm]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchContacts();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [selectedEmail, searchTerm]);
+
+  // Group contacts by email
+  const contactsByEmail = contacts.reduce((acc, contact) => {
+    const email = contact.client_email || 'unknown';
+    if (!acc[email]) {
+      acc[email] = [];
+    }
+    acc[email].push(contact);
+    return acc;
+  }, {} as Record<string, Contact[]>);
+
+  // Calculate metrics
+  const totalContacts = contacts.length;
+  const accountGroups = Object.keys(contactsByEmail).length;
+  const leadsAbove80 = contacts.filter(contact => (contact.total_lead_score || contact.lead_score || 0) >= 80).length;
+  const readyContacts = contacts.filter(contact => contact.sent_to_client === 'Yes').length;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header 
-        user={user} 
-        onSignOut={handleSignOut}
-        availableEmails={availableEmails}
-        selectedEmail={selectedEmail}
-        onEmailChange={setSelectedEmail}
+      <Header onRefresh={fetchContacts} lastUpdated={lastUpdated} />
+      
+      <MetricsCards
+        accountGroups={accountGroups}
+        totalContacts={totalContacts}
+        leadsAbove80={leadsAbove80}
+        readyContacts={readyContacts}
       />
       
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-6">
-        <StatsCards 
-          totalContacts={totalContacts}
-          filteredContacts={totalContactsForEmail}
-          selectedEmail={selectedEmail}
-        />
-        
-        <ContactsList
-          contacts={contacts}
-          loading={loading}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalContacts={totalContactsForEmail}
-          onPageChange={setCurrentPage}
-          selectedEmail={selectedEmail}
-        />
-      </main>
+      <SearchAndFilter
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        selectedEmail={selectedEmail}
+        onEmailChange={setSelectedEmail}
+        availableEmails={availableEmails}
+      />
+      
+      <ContactsTable
+        contactsByEmail={contactsByEmail}
+        loading={loading}
+      />
     </div>
   );
 };
