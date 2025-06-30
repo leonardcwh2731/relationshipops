@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, 
   Search,
@@ -37,6 +37,9 @@ const App: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState('');
   const [loading, setLoading] = useState(true);
   
+  // Modal ref for click outside
+  const modalRef = useRef<HTMLDivElement>(null);
+  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -60,6 +63,23 @@ const App: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedClient]);
+
+  // Click outside to close modal
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        handleHideDetails();
+      }
+    };
+
+    if (showContactDetails) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showContactDetails]);
 
   const loadData = async () => {
     setLoading(true);
@@ -158,13 +178,14 @@ const App: React.FC = () => {
       // Fallback to mock data
       const mockContacts: Contact[] = [
         {
-          linkedin_profile_url: '1',
+          linkedin_profile_url: 'https://www.linkedin.com/in/nadav-eitan/',
           full_name: 'Nadav Eitan',
           first_name: 'Nadav',
           last_name: 'Eitan',
           job_title: 'CEO',
           company_name: 'Emporus Technologies',
           company_domain: 'emporus.com',
+          company_linkedin_url: 'https://www.linkedin.com/company/emporus-technologies/',
           work_email: 'Nadav@emporus.com',
           total_lead_score: 94,
           client_email: 'peter.kang@barrelny.com',
@@ -184,13 +205,14 @@ const App: React.FC = () => {
           created_at: '2025-06-28T00:30:29Z'
         },
         {
-          linkedin_profile_url: '2',
+          linkedin_profile_url: 'https://www.linkedin.com/in/jacob-sussman/',
           full_name: 'Jacob Sussman',
           first_name: 'Jacob',
           last_name: 'Sussman',
           job_title: 'CEO',
           company_name: 'BX Studio',
           company_domain: 'bx.studio',
+          company_linkedin_url: 'https://www.linkedin.com/company/bx-studio/',
           work_email: 'jacob@bx.studio',
           total_lead_score: 94,
           client_email: 'peter.kang@barrelny.com',
@@ -199,13 +221,14 @@ const App: React.FC = () => {
           company_staff_count_range: '11 - 50'
         },
         {
-          linkedin_profile_url: '3',
+          linkedin_profile_url: 'https://www.linkedin.com/in/david-kong/',
           full_name: 'David Kong',
           first_name: 'David',
           last_name: 'Kong',
           job_title: 'Founder',
           company_name: 'Somm',
           company_domain: 'somm.ai',
+          company_linkedin_url: 'https://www.linkedin.com/company/somm/',
           work_email: 'david@somm.ai',
           total_lead_score: 94,
           client_email: 'peter.kang@barrelny.com',
@@ -562,6 +585,65 @@ const App: React.FC = () => {
     );
   };
 
+  // Editable link component for View Profile and View Company
+  const EditableLink: React.FC<{ 
+    label: string; 
+    fieldName: string;
+    href: string;
+    target?: string;
+  }> = ({ label, fieldName, href, target = "_blank" }) => {
+    const isEditing = editingFields.has(fieldName);
+    const displayValue = editedContact?.[fieldName as keyof Contact] || href || '';
+
+    return (
+      <div className="pt-4 group">
+        {isEditing ? (
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={displayValue}
+              onChange={(e) => handleFieldChange(fieldName, e.target.value)}
+              className="text-sm border border-gray-300 rounded px-2 py-1 w-full"
+              placeholder="Enter full URL"
+            />
+            <div className="flex gap-1">
+              <button
+                onClick={() => handleSaveField(fieldName)}
+                className="p-1 text-green-600 hover:text-green-800"
+              >
+                <Save className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => handleCancelEdit(fieldName)}
+                className="p-1 text-red-600 hover:text-red-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <a 
+              href={displayValue || href}
+              target={target}
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+            >
+              <ExternalLink className="w-4 h-4 mr-1" />
+              {label}
+            </a>
+            <button
+              onClick={() => handleEditField(fieldName)}
+              className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600"
+            >
+              <Pencil className="w-3 h-3 text-gray-400" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center">
@@ -672,19 +754,19 @@ const App: React.FC = () => {
                       <table className="min-w-full table-fixed">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-1/4 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Contact
                             </th>
-                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-1/6 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Job Title
                             </th>
-                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-1/4 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Company
                             </th>
-                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-1/12 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Score
                             </th>
-                            <th className="w-1/5 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-1/6 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Actions
                             </th>
                           </tr>
@@ -694,7 +776,7 @@ const App: React.FC = () => {
                             .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
                             .map((contact) => (
                             <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
-                              <td className="w-1/5 px-2 py-4">
+                              <td className="w-1/4 px-2 py-4">
                                 <div className="min-w-0">
                                   <div className="text-sm font-medium text-gray-900 truncate">{contact.full_name}</div>
                                   <a 
@@ -705,12 +787,12 @@ const App: React.FC = () => {
                                   </a>
                                 </div>
                               </td>
-                              <td className="w-1/5 px-2 py-4">
+                              <td className="w-1/6 px-2 py-4">
                                 <div className="text-sm text-gray-900 truncate">
                                   {contact.job_title}
                                 </div>
                               </td>
-                              <td className="w-1/5 px-2 py-4">
+                              <td className="w-1/4 px-2 py-4">
                                 <div className="min-w-0">
                                   <div className="text-sm text-gray-900 truncate">{contact.company_name}</div>
                                   <a 
@@ -723,16 +805,17 @@ const App: React.FC = () => {
                                   </a>
                                 </div>
                               </td>
-                              <td className="w-1/5 px-2 py-4">
+                              <td className="w-1/12 px-2 py-4">
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {contact.total_lead_score || 0}
                                 </span>
                               </td>
-                              <td className="w-1/5 px-2 py-4">
+                              <td className="w-1/6 px-2 py-4">
                                 <button
                                   onClick={() => handleShowDetails(contact)}
-                                  className="text-black hover:text-gray-700 text-sm whitespace-nowrap"
+                                  className="text-black hover:text-gray-700 text-sm whitespace-nowrap flex items-center"
                                 >
+                                  <ChevronRight className="w-4 h-4 mr-1" />
                                   Show Details
                                 </button>
                               </td>
@@ -769,7 +852,10 @@ const App: React.FC = () => {
         {/* Contact Details Modal */}
         {showContactDetails && selectedContact && editedContact && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div 
+              ref={modalRef}
+              className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+            >
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-start">
                   <div>
@@ -785,7 +871,7 @@ const App: React.FC = () => {
                     onClick={handleHideDetails}
                     className="flex items-center px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg"
                   >
-                    <EyeOff className="w-4 h-4 mr-2" />
+                    <ChevronLeft className="w-4 h-4 mr-2" />
                     Hide Details
                   </button>
                 </div>
@@ -808,12 +894,11 @@ const App: React.FC = () => {
                       <EditableField label="Country" fieldName="lead_country" value={selectedContact.lead_country} />
                       <EditableField label="LinkedIn Connections" fieldName="connection_count" value={selectedContact.connection_count} />
                       <EditableField label="LinkedIn Followers" fieldName="followers_count" value={selectedContact.followers_count} />
-                      <div className="pt-4">
-                        <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center group">
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          View Profile
-                        </a>
-                      </div>
+                      <EditableLink 
+                        label="View Profile" 
+                        fieldName="linkedin_profile_url" 
+                        href={selectedContact.linkedin_profile_url || '#'} 
+                      />
                     </div>
                   </div>
 
@@ -828,17 +913,11 @@ const App: React.FC = () => {
                       <EditableField label="Company Domain" fieldName="company_domain" value={selectedContact.company_domain} isLink />
                       <EditableField label="Company Industry" fieldName="company_industry" value={selectedContact.company_industry} />
                       <EditableField label="Company Staff Range" fieldName="company_staff_count_range" value={selectedContact.company_staff_count_range} />
-                      <div className="pt-4">
-                        <a 
-                          href={`https://${selectedContact.company_domain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm flex items-center group"
-                        >
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          View Company
-                        </a>
-                      </div>
+                      <EditableLink 
+                        label="View Company" 
+                        fieldName="company_linkedin_url" 
+                        href={selectedContact.company_linkedin_url || `https://${selectedContact.company_domain}`} 
+                      />
                     </div>
                   </div>
 
