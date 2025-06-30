@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { MetricsCards } from './MetricsCards';
 import { SearchAndFilter } from './SearchAndFilter';
+import { ContactsList } from './ContactsList';
 import { supabase } from '../lib/supabase';
 import { Contact } from '../types/Contact';
 import { User } from '../App';
@@ -153,6 +154,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
           selectedEmail={selectedEmail}
           onEmailChange={setSelectedEmail}
           availableEmails={availableEmails}
+        />
+
+        <ContactsList
+          contactsByEmail={contactsByEmail}
+          loading={loading}
         />
       </div>
     </div>
