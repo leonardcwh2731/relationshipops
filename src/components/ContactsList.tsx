@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, Edit3 } from 'lucide-react';
 import { Contact } from '../types/Contact';
+import { ContactDetailsModal } from './ContactDetailsModal';
 
 interface ContactsListProps {
   contactsByEmail: Record<string, Contact[]>;
@@ -9,12 +10,29 @@ interface ContactsListProps {
 
 export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loading }) => {
   const [expandedEmails, setExpandedEmails] = useState<Record<string, boolean>>({});
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const toggleEmail = (email: string) => {
     setExpandedEmails(prev => ({
       ...prev,
       [email]: !prev[email]
     }));
+  };
+
+  const handleShowDetails = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedContact(null);
+  };
+
+  const handleEditContact = (contact: Contact) => {
+    // TODO: Implement edit functionality
+    console.log('Edit contact:', contact);
   };
 
   const getLeadsAbove80Count = (contacts: Contact[]) => {
@@ -114,20 +132,20 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
                             
                             <div className="col-span-3">
                               <div className="flex items-center space-x-3">
-                                <button className="text-sm text-gray-600 hover:text-gray-900 flex items-center">
+                                <button 
+                                  onClick={() => handleShowDetails(contact)}
+                                  className="text-sm text-gray-600 hover:text-gray-900 flex items-center transition-colors"
+                                >
                                   <ChevronRight className="w-4 h-4 mr-1" />
                                   Show Details
                                 </button>
-                                {contact.linkedin_profile_url && (
-                                  <a
-                                    href={contact.linkedin_profile_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 text-sm"
-                                  >
-                                    LinkedIn
-                                  </a>
-                                )}
+                                <button
+                                  onClick={() => handleEditContact(contact)}
+                                  className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
+                                  title="Edit contact"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -148,6 +166,13 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
           ))}
         </div>
       </div>
+
+      {/* Contact Details Modal */}
+      <ContactDetailsModal
+        contact={selectedContact}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </div>
   );
 };
