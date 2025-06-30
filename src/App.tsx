@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { SignInPage } from './components/SignInPage';
+import React from 'react';
 import { Dashboard } from './components/Dashboard';
-import { supabase } from './lib/supabase';
 
 export interface User {
   id: string;
@@ -12,76 +10,21 @@ export interface User {
 }
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Mock user data for direct dashboard access
+  const mockUser: User = {
+    id: 'mock-user-id',
+    email: 'demo@relationshipops.com',
+    full_name: 'Demo User',
+    first_name: 'Demo',
+    last_name: 'User'
+  };
 
-  useEffect(() => {
-    // Check if user is already signed in
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          // Get user details from client_details table
-          const { data: clientData } = await supabase
-            .from('client_details')
-            .select('*')
-            .eq('email_address', session.user.email)
-            .single();
+  const handleSignOut = () => {
+    // Mock sign out - just reload the page or handle as needed
+    window.location.reload();
+  };
 
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: clientData?.full_name || '',
-            first_name: clientData?.first_name || '',
-            last_name: clientData?.last_name || ''
-          });
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const { data: clientData } = await supabase
-          .from('client_details')
-          .select('*')
-          .eq('email_address', session.user.email)
-          .single();
-
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          full_name: clientData?.full_name || '',
-          first_name: clientData?.first_name || '',
-          last_name: clientData?.last_name || ''
-        });
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <SignInPage onSignIn={setUser} />;
-  }
-
-  return <Dashboard user={user} onSignOut={() => setUser(null)} />;
+  return <Dashboard user={mockUser} onSignOut={handleSignOut} />;
 }
 
 export default App;
