@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [totalContactsCount, setTotalContactsCount] = useState<number>(0);
+  const [sentContactsCount, setSentContactsCount] = useState<number>(0);
   const [contactCountsByEmail, setContactCountsByEmail] = useState<ContactCountByEmail>({});
 
   // Load clients and contacts from Supabase
@@ -84,7 +85,13 @@ const App: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadClients(), loadContacts(), loadTotalContactsCount(), loadContactCountsByEmail()]);
+      await Promise.all([
+        loadClients(), 
+        loadContacts(), 
+        loadTotalContactsCount(), 
+        loadSentContactsCount(),
+        loadContactCountsByEmail()
+      ]);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { 
         hour12: false, 
         hour: '2-digit', 
@@ -95,6 +102,23 @@ const App: React.FC = () => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSentContactsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*', { count: 'exact', head: true })
+        .not('sent_to_client', 'is', null)
+        .neq('sent_to_client', '')
+        .neq('sent_to_client', '-');
+
+      if (error) throw error;
+      setSentContactsCount(count || 0);
+    } catch (error) {
+      console.error('Error loading sent contacts count:', error);
+      setSentContactsCount(0);
     }
   };
 
@@ -308,8 +332,8 @@ const App: React.FC = () => {
       value: filteredContacts.filter(contact => isRelevantLead(contact)).length
     },
     {
-      title: 'Ready Contacts',
-      value: 0
+      title: 'Sent Contacts',
+      value: sentContactsCount // Use the sent contacts count from Supabase
     }
   ];
 
@@ -754,19 +778,19 @@ const App: React.FC = () => {
                       <table className="min-w-full table-fixed">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="w-1/4 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-56 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Contact
                             </th>
-                            <th className="w-1/6 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-32 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Job Title
                             </th>
-                            <th className="w-1/4 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-48 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Company
                             </th>
-                            <th className="w-1/12 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-20 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Score
                             </th>
-                            <th className="w-1/6 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="w-32 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Actions
                             </th>
                           </tr>
@@ -776,7 +800,7 @@ const App: React.FC = () => {
                             .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
                             .map((contact) => (
                             <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
-                              <td className="w-1/4 px-2 py-4">
+                              <td className="w-56 px-3 py-4">
                                 <div className="min-w-0">
                                   <div className="text-sm font-medium text-gray-900 truncate">{contact.full_name}</div>
                                   <a 
@@ -787,12 +811,12 @@ const App: React.FC = () => {
                                   </a>
                                 </div>
                               </td>
-                              <td className="w-1/6 px-2 py-4">
+                              <td className="w-32 px-2 py-4">
                                 <div className="text-sm text-gray-900 truncate">
                                   {contact.job_title}
                                 </div>
                               </td>
-                              <td className="w-1/4 px-2 py-4">
+                              <td className="w-48 px-3 py-4">
                                 <div className="min-w-0">
                                   <div className="text-sm text-gray-900 truncate">{contact.company_name}</div>
                                   <a 
@@ -805,18 +829,18 @@ const App: React.FC = () => {
                                   </a>
                                 </div>
                               </td>
-                              <td className="w-1/12 px-2 py-4">
+                              <td className="w-20 px-2 py-4">
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {contact.total_lead_score || 0}
                                 </span>
                               </td>
-                              <td className="w-1/6 px-2 py-4">
+                              <td className="w-32 px-3 py-4">
                                 <button
                                   onClick={() => handleShowDetails(contact)}
-                                  className="text-black hover:text-gray-700 text-sm whitespace-nowrap flex items-center"
+                                  className="text-black hover:text-gray-700 text-sm whitespace-nowrap flex items-center min-w-max"
                                 >
-                                  <ChevronRight className="w-4 h-4 mr-1" />
-                                  Show Details
+                                  <ChevronRight className="w-4 h-4 mr-1 flex-shrink-0" />
+                                  <span className="flex-shrink-0">Show Details</span>
                                 </button>
                               </td>
                             </tr>
