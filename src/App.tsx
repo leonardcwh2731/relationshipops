@@ -118,7 +118,6 @@ const App: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true);
-    console.log('🔄 Starting data load...');
     try {
       await Promise.all([
         loadClients(), 
@@ -134,64 +133,44 @@ const App: React.FC = () => {
         minute: '2-digit', 
         second: '2-digit' 
       }));
-      console.log('✅ Data load completed');
     } catch (error) {
-      console.error('❌ Error loading data:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const loadUniqueClientEmails = async () => {
-    console.log('📧 Loading unique client emails...');
     try {
-      // First, let's try to get all records without any filters
-      const { data: allData, error: allError, count: allCount } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('client_email', { count: 'exact' })
-        .limit(200000);
-
-      if (allError) {
-        console.error('❌ Error fetching all client emails:', allError);
-        throw allError;
-      }
-      
-      console.log('📊 Total records in table:', allCount);
-      console.log('📦 Fetched records for emails:', allData?.length);
-      
-      // Now let's filter out null/empty emails
+      console.log('🔍 Loading unique client emails...');
       const { data, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('client_email')
         .not('client_email', 'is', null)
-        .neq('client_email', '')
-        .limit(200000);
+        .neq('client_email', '');
 
       if (error) {
-        console.error('❌ Error fetching filtered client emails:', error);
+        console.error('❌ Error loading unique client emails:', error);
         throw error;
       }
       
-      console.log('📦 Fetched non-empty client emails data length:', data?.length);
+      console.log('📊 Total records with non-null client_email:', data?.length || 0);
       
-      // Get unique emails and normalize them
-      const uniqueEmails = [...new Set(
-        data?.map(contact => contact.client_email?.trim().toLowerCase()).filter(Boolean)
-      )];
-      
-      console.log('📧 Unique client emails found:', uniqueEmails);
-      console.log('🔢 Unique client emails count:', uniqueEmails.length);
+      // Get unique emails
+      const uniqueEmails = [...new Set(data?.map(contact => contact.client_email).filter(Boolean))];
+      console.log('📧 Unique client emails found:', uniqueEmails.length);
+      console.log('📧 Unique emails list:', uniqueEmails);
       
       setUniqueClientEmails(uniqueEmails);
     } catch (error) {
-      console.error('❌ Error loading unique client emails:', error);
+      console.error('Error loading unique client emails:', error);
       setUniqueClientEmails([]);
     }
   };
 
   const loadSentContactsCount = async () => {
-    console.log('📤 Loading sent contacts count...');
     try {
+      console.log('📤 Loading sent contacts count...');
       const { count, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true })
@@ -204,56 +183,114 @@ const App: React.FC = () => {
         throw error;
       }
       
-      console.log('📤 Sent contacts count:', count);
+      console.log('📤 Sent contacts count:', count || 0);
       setSentContactsCount(count || 0);
     } catch (error) {
-      console.error('❌ Error loading sent contacts count:', error);
+      console.error('Error loading sent contacts count:', error);
       setSentContactsCount(0);
     }
   };
 
   const loadContactCountsByEmail = async () => {
-    console.log('📊 Loading contact counts by email...');
     try {
-      // Get ALL contacts with client_email for accurate counting
-      const { data, error, count } = await supabase
+      console.log('📊 Loading contact counts by email...');
+      
+      // First, let's get ALL records to see what we're working with
+      const { data: allData, error: allError } = await supabase
         .from('icp_contacts_tracking_in_progress')
-        .select('client_email', { count: 'exact' })
-        .limit(200000);
+        .select('client_email, linkedin_profile_url');
+
+      if (allError) {
+        console.error('❌ Error loading all contacts for count:', allError);
+        throw allError;
+      }
+
+      console.log('📊 Total records fetched for counting:', allData?.length || 0);
+
+      // Count all records by email (including null/empty)
+      const allCounts: ContactCountByEmail = {};
+      allData?.forEach(contact => {
+        const email = contact.client_email || 'null_or_empty';
+        allCounts[email] = (allCounts[email] || 0) + 1;
+      });
+
+      console.log('📊 All counts (including null/empty):', allCounts);
+
+      // Now let's specifically check Peter Kang's email
+      const peterEmail = 'peter.kang@barrelny.com';
+      console.log(`🎯 Checking specifically for ${peterEmail}...`);
+
+      // Direct count query for Peter Kang
+      const { count: peterDirectCount, error: peterError } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('client_email', peterEmail);
+
+      if (peterError) {
+        console.error('❌ Error counting Peter Kang contacts:', peterError);
+      } else {
+        console.log(`🎯 Direct count for ${peterEmail}:`, peterDirectCount);
+      }
+
+      // Let's also check for variations of Peter's email
+      const { data: peterVariations, error: peterVarError } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('client_email, linkedin_profile_url')
+        .ilike('client_email', '%peter.kang%');
+
+      if (peterVarError) {
+        console.error('❌ Error checking Peter email variations:', peterVarError);
+      } else {
+        console.log('🔍 Peter email variations found:', peterVariations?.length || 0);
+        console.log('🔍 Variations:', peterVariations?.map(v => v.client_email).slice(0, 10));
+      }
+
+      // Let's also check for case sensitivity issues
+      const { data: peterCaseCheck, error: peterCaseError } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('client_email, linkedin_profile_url')
+        .or(`client_email.eq.${peterEmail},client_email.eq.Peter.Kang@barrelny.com,client_email.eq.PETER.KANG@BARRELNY.COM`);
+
+      if (peterCaseError) {
+        console.error('❌ Error checking Peter case sensitivity:', peterCaseError);
+      } else {
+        console.log('🔍 Peter case sensitivity check:', peterCaseCheck?.length || 0);
+        const uniqueCases = [...new Set(peterCaseCheck?.map(v => v.client_email))];
+        console.log('🔍 Unique case variations:', uniqueCases);
+      }
+
+      // Filter out null/empty for the main counts
+      const { data, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('client_email')
+        .not('client_email', 'is', null)
+        .neq('client_email', '');
 
       if (error) {
-        console.error('❌ Error loading contact counts by email:', error);
+        console.error('❌ Error loading filtered contacts for count:', error);
         throw error;
       }
       
-      console.log('📊 Total contacts in table (for counting):', count);
-      console.log('📦 Fetched contacts data length (for counting):', data?.length);
-      
-      // Count contacts per email
+      // Count contacts per email (excluding null/empty)
       const counts: ContactCountByEmail = {};
       data?.forEach(contact => {
-        if (contact.client_email) {
-          const email = contact.client_email.trim().toLowerCase();
-          counts[email] = (counts[email] || 0) + 1;
-        }
+        const email = contact.client_email || 'unknown';
+        counts[email] = (counts[email] || 0) + 1;
       });
       
-      console.log('📊 Contact counts by email:', counts);
-      
-      // Specifically log the count for peter.kang@barrelny.com
-      const peterCount = counts['peter.kang@barrelny.com'];
-      console.log('🎯 Peter Kang contact count:', peterCount);
+      console.log('📊 Final filtered counts:', counts);
+      console.log(`🎯 Peter Kang final count: ${counts[peterEmail] || 0}`);
       
       setContactCountsByEmail(counts);
     } catch (error) {
-      console.error('❌ Error loading contact counts by email:', error);
+      console.error('Error loading contact counts by email:', error);
       setContactCountsByEmail({});
     }
   };
 
   const loadTotalContactsCount = async () => {
-    console.log('🔢 Loading total contacts count...');
     try {
+      console.log('🔢 Loading total contacts count...');
       const { count, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true });
@@ -263,33 +300,26 @@ const App: React.FC = () => {
         throw error;
       }
       
-      console.log('🔢 Total contacts count from Supabase:', count);
+      console.log('🔢 Total contacts count from Supabase:', count || 0);
       setTotalContactsCount(count || 0);
     } catch (error) {
-      console.error('❌ Error loading total contacts count:', error);
+      console.error('Error loading total contacts count:', error);
       // Fallback to filtered contacts length if Supabase fails
       setTotalContactsCount(contacts.length);
     }
   };
 
   const loadClients = async () => {
-    console.log('👥 Loading clients...');
     try {
       const { data, error } = await supabase
         .from('client_details')
         .select('email_address, full_name, first_name, last_name')
-        .order('full_name')
-        .limit(100000);
+        .order('full_name');
 
-      if (error) {
-        console.error('❌ Error loading clients:', error);
-        throw error;
-      }
-      
-      console.log('👥 Fetched clients data length:', data?.length);
+      if (error) throw error;
       setClients(data || []);
     } catch (error) {
-      console.error('❌ Error loading clients:', error);
+      console.error('Error loading clients:', error);
       // Fallback to mock data
       setClients([
         {
@@ -309,73 +339,27 @@ const App: React.FC = () => {
   };
 
   const loadContacts = async () => {
-    console.log('👤 Loading contacts...');
     try {
-      // Test Supabase connection first
-      console.log('🔗 Testing Supabase connection...');
-      const { data: testData, error: testError } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('client_email')
-        .limit(1);
-      
-      if (testError) {
-        console.error('❌ Supabase connection test failed:', testError);
-        throw testError;
-      }
-      
-      console.log('✅ Supabase connection successful');
-      
-      // Check for RLS issues by trying to get total count
-      const { count: totalCount, error: countError } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('*', { count: 'exact', head: true });
-      
-      if (countError) {
-        console.error('❌ Error getting total count (possible RLS issue):', countError);
-      } else {
-        console.log('📊 Total accessible records:', totalCount);
-      }
-      
-      // Try different approaches to get all data
-      console.log('📥 Attempting to fetch all contacts...');
-      
-      // Method 1: Direct query with high limit
-      const { data: method1Data, error: method1Error } = await supabase
+      console.log('👥 Loading contacts...');
+      const { data, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*')
-        .order('total_lead_score', { ascending: false })
-        .limit(200000);
-      
-      if (method1Error) {
-        console.error('❌ Method 1 failed:', method1Error);
-        
-        // Method 2: Try without ordering
-        console.log('🔄 Trying method 2 (no ordering)...');
-        const { data: method2Data, error: method2Error } = await supabase
-          .from('icp_contacts_tracking_in_progress')
-          .select('*')
-          .limit(200000);
-        
-        if (method2Error) {
-          console.error('❌ Method 2 also failed:', method2Error);
-          throw method2Error;
-        }
-        
-        console.log('👤 Method 2 - Fetched contacts data length:', method2Data?.length);
-        setContacts(method2Data || []);
-      } else {
-        console.log('👤 Method 1 - Fetched contacts data length:', method1Data?.length);
-        
-        // Check specifically for Peter Kang contacts
-        const peterContacts = method1Data?.filter(contact => 
-          contact.client_email?.trim().toLowerCase() === 'peter.kang@barrelny.com'
-        );
-        console.log('🎯 Peter Kang contacts in fetched data:', peterContacts?.length);
-        
-        setContacts(method1Data || []);
+        .order('total_lead_score', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error loading contacts:', error);
+        throw error;
       }
+      
+      console.log('👥 Total accessible records:', data?.length || 0);
+      
+      // Check specifically for Peter Kang contacts in the loaded data
+      const peterContacts = data?.filter(contact => contact.client_email === 'peter.kang@barrelny.com') || [];
+      console.log(`🎯 Peter Kang contacts in loaded data: ${peterContacts.length}`);
+      
+      setContacts(data || []);
     } catch (error) {
-      console.error('❌ Error loading contacts:', error);
+      console.error('Error loading contacts:', error);
       // Fallback to mock data
       const mockContacts: Contact[] = [
         {
@@ -436,13 +420,11 @@ const App: React.FC = () => {
           last_interaction_date: '2023-05-07' // More than 6 months ago
         }
       ];
-      console.log('🔄 Using mock data - length:', mockContacts.length);
       setContacts(mockContacts);
     }
   };
 
   const handleRefresh = () => {
-    console.log('🔄 Manual refresh triggered');
     loadData();
   };
 
@@ -470,16 +452,14 @@ const App: React.FC = () => {
       contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.work_email?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const normalizedSelectedClient = selectedClient === 'all' ? 'all' : selectedClient.trim().toLowerCase();
-    const normalizedContactEmail = contact.client_email?.trim().toLowerCase() || '';
-    const matchesClient = normalizedSelectedClient === 'all' || normalizedContactEmail === normalizedSelectedClient;
+    const matchesClient = selectedClient === 'all' || contact.client_email === selectedClient;
     
     return matchesSearch && matchesClient;
   });
 
   // Group contacts by client email
   const groupedContacts = filteredContacts.reduce((acc, contact) => {
-    const email = contact.client_email?.trim().toLowerCase() || 'unknown';
+    const email = contact.client_email || 'unknown';
     if (!acc[email]) {
       acc[email] = [];
     }
