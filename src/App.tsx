@@ -8,7 +8,8 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Edit3
+  Edit3,
+  ChevronLeft
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -30,6 +31,11 @@ const App: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState('');
   const [loading, setLoading] = useState(true);
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [metricsPage, setMetricsPage] = useState(1);
+  
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -38,6 +44,11 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Reset to first page when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedClient]);
 
   const loadData = async () => {
     setLoading(true);
@@ -199,6 +210,49 @@ const App: React.FC = () => {
     return acc;
   }, {} as Record<string, Contact[]>);
 
+  // Pagination for grouped contacts
+  const accountEmails = Object.keys(groupedContacts);
+  const totalAccounts = accountEmails.length;
+  const totalPages = Math.ceil(totalAccounts / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAccountEmails = accountEmails.slice(startIndex, endIndex);
+  const paginatedGroupedContacts = paginatedAccountEmails.reduce((acc, email) => {
+    acc[email] = groupedContacts[email];
+    return acc;
+  }, {} as Record<string, Contact[]>);
+
+  // Calculate metrics for current page
+  const currentPageContacts = Object.values(paginatedGroupedContacts).flat();
+  const metricsData = [
+    {
+      title: 'Account Groups',
+      value: paginatedAccountEmails.length,
+      total: totalAccounts
+    },
+    {
+      title: 'Total Contacts', 
+      value: currentPageContacts.length,
+      total: filteredContacts.length
+    },
+    {
+      title: 'Relevant Leads',
+      value: currentPageContacts.filter(contact => isRelevantLead(contact)).length,
+      total: filteredContacts.filter(contact => isRelevantLead(contact)).length
+    },
+    {
+      title: 'Ready Contacts',
+      value: 0,
+      total: 0
+    }
+  ];
+
+  // Metrics pagination (show 2 metrics at a time on mobile, all on desktop)
+  const metricsPerPage = 2;
+  const totalMetricsPages = Math.ceil(metricsData.length / metricsPerPage);
+  const metricsStartIndex = (metricsPage - 1) * metricsPerPage;
+  const paginatedMetrics = metricsData.slice(metricsStartIndex, metricsStartIndex + metricsPerPage);
+
   const toggleAccountExpansion = (email: string) => {
     const newExpanded = new Set(expandedAccounts);
     if (newExpanded.has(email)) {
@@ -219,10 +273,121 @@ const App: React.FC = () => {
     setSelectedContact(null);
   };
 
-  const totalContacts = filteredContacts.length;
-  const accountGroups = Object.keys(groupedContacts).length;
-  const relevantLeads = filteredContacts.filter(contact => isRelevantLead(contact)).length;
-  const readyContacts = 0; // Placeholder
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setExpandedAccounts(new Set()); // Collapse all when changing pages
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+    setExpandedAccounts(new Set());
+  };
+
+  const handleMetricsPageChange = (page: number) => {
+    setMetricsPage(page);
+  };
+
+  // Pagination component
+  const Pagination: React.FC<{
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    itemsPerPage: number;
+    onItemsPerPageChange: (items: number) => void;
+    totalItems: number;
+    showItemsPerPage?: boolean;
+  }> = ({ 
+    currentPage, 
+    totalPages, 
+    onPageChange, 
+    itemsPerPage, 
+    onItemsPerPageChange, 
+    totalItems,
+    showItemsPerPage = true 
+  }) => {
+    const getVisiblePages = () => {
+      const pages = [];
+      const maxVisible = 5;
+      
+      if (totalPages <= maxVisible) {
+        for (let i = 1; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        if (currentPage <= 3) {
+          pages.push(1, 2, 3, 4, '...', totalPages);
+        } else if (currentPage >= totalPages - 2) {
+          pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+          pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+        }
+      }
+      
+      return pages;
+    };
+
+    return (
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 border-t border-gray-200">
+        <div className="text-sm text-gray-500">
+          Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {showItemsPerPage && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Show:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+                className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="p-2 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            
+            {getVisiblePages().map((page, index) => (
+              <button
+                key={index}
+                onClick={() => typeof page === 'number' ? onPageChange(page) : null}
+                disabled={page === '...'}
+                className={`px-3 py-2 rounded border text-sm ${
+                  page === currentPage
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : page === '...'
+                    ? 'border-transparent cursor-default'
+                    : 'border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            
+            <button
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="p-2 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Field component with edit icon
   const FieldWithEdit: React.FC<{ 
@@ -281,25 +446,61 @@ const App: React.FC = () => {
       {/* Dashboard Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-black text-white rounded-lg p-6">
-            <div className="text-3xl font-bold mb-2">{accountGroups}</div>
-            <div className="text-sm text-gray-300">Account Groups</div>
+        <div className="mb-8">
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {metricsData.map((metric, index) => (
+              <div key={index} className="bg-black text-white rounded-lg p-6">
+                <div className="text-3xl font-bold mb-2">
+                  {metric.value.toLocaleString()}
+                  {metric.total !== metric.value && (
+                    <span className="text-lg text-gray-300 ml-2">
+                      / {metric.total.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-300">{metric.title}</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Page {currentPage} of {totalPages}
+                </div>
+              </div>
+            ))}
           </div>
           
-          <div className="bg-black text-white rounded-lg p-6">
-            <div className="text-3xl font-bold mb-2">{totalContacts.toLocaleString()}</div>
-            <div className="text-sm text-gray-300">Total Contacts</div>
-          </div>
-          
-          <div className="bg-black text-white rounded-lg p-6">
-            <div className="text-3xl font-bold mb-2">{relevantLeads}</div>
-            <div className="text-sm text-gray-300">Relevant Leads</div>
-          </div>
-          
-          <div className="bg-black text-white rounded-lg p-6">
-            <div className="text-3xl font-bold mb-2">{readyContacts}</div>
-            <div className="text-sm text-gray-300">Ready Contacts</div>
+          {/* Mobile Metrics with Pagination */}
+          <div className="md:hidden">
+            <div className="grid grid-cols-1 gap-4 mb-4">
+              {paginatedMetrics.map((metric, index) => (
+                <div key={index} className="bg-black text-white rounded-lg p-6">
+                  <div className="text-3xl font-bold mb-2">
+                    {metric.value.toLocaleString()}
+                    {metric.total !== metric.value && (
+                      <span className="text-lg text-gray-300 ml-2">
+                        / {metric.total.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-300">{metric.title}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Metrics Pagination */}
+            {totalMetricsPages > 1 && (
+              <div className="flex justify-center gap-2 mb-6">
+                {Array.from({ length: totalMetricsPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => handleMetricsPageChange(page)}
+                    className={`w-3 h-3 rounded-full transition-colors ${
+                      page === metricsPage ? 'bg-black' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -329,11 +530,18 @@ const App: React.FC = () => {
         <div className="bg-white rounded-lg shadow">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Contacts by Account Email</h2>
-            <p className="text-sm text-gray-500 mt-1">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Sorted by lead score (highest first) • Auto-refreshes every 30 seconds
+              {totalAccounts > 0 && (
+                <span className="ml-2">
+                  • Showing {paginatedAccountEmails.length} of {totalAccounts} account groups
+                </span>
+              )}
+            </p>
           </div>
 
           <div className="divide-y divide-gray-200">
-            {Object.entries(groupedContacts).map(([email, emailContacts]) => {
+            {Object.entries(paginatedGroupedContacts).map(([email, emailContacts]) => {
               const isExpanded = expandedAccounts.has(email);
               const relevantLeadsCount = emailContacts.filter(contact => isRelevantLead(contact)).length;
               
@@ -426,10 +634,22 @@ const App: React.FC = () => {
             })}
           </div>
 
-          {Object.keys(groupedContacts).length === 0 && (
+          {Object.keys(paginatedGroupedContacts).length === 0 && (
             <div className="p-8 text-center text-gray-500">
               No contacts found matching your criteria.
             </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={handleItemsPerPageChange}
+              totalItems={totalAccounts}
+            />
           )}
         </div>
 
