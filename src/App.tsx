@@ -14,11 +14,12 @@ import {
   Pencil,
   Lock,
   LogOut,
+  Menu,
   Settings,
-  Home,
+  BarChart3,
   Plus,
-  Edit,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -35,52 +36,56 @@ interface ContactCountByEmail {
   [email: string]: number;
 }
 
-interface User {
+interface AppUser {
   email: string;
   password: string;
-  role: 'admin' | 'member';
-  name: string;
-  allowedEmails: string[];
+  role: 'Admin' | 'Member';
+  allowedEmails?: string[]; // For member access restriction
 }
 
 const App: React.FC = () => {
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
 
   // Sidebar states
-  const [currentView, setCurrentView] = useState<'dashboard' | 'settings'>('dashboard');
-  const [users, setUsers] = useState<User[]>([
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard');
+
+  // Settings states
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUser, setNewUser] = useState<{
+    email: string;
+    password: string;
+    role: 'Admin' | 'Member';
+    allowedEmails: string[];
+  }>({
+    email: '',
+    password: '',
+    role: 'Member',
+    allowedEmails: []
+  });
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [users, setUsers] = useState<AppUser[]>([
     {
       email: 'leonard.chin@veraops.com',
       password: '1410202832',
-      role: 'admin',
-      name: 'Leonard Chin',
-      allowedEmails: []
+      role: 'Admin'
     },
     {
       email: 'peter.kang@veraops.com',
       password: 'relationshipopsadmin2',
-      role: 'admin',
-      name: 'Peter Kang',
-      allowedEmails: []
+      role: 'Admin'
     }
   ]);
-
-  // Settings states
-  const [newUser, setNewUser] = useState({
-    email: '',
-    password: '',
-    role: 'member' as 'admin' | 'member',
-    name: '',
-    allowedEmails: [] as string[]
-  });
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [changePasswordUser, setChangePasswordUser] = useState<User | null>(null);
-  const [newPassword, setNewPassword] = useState('');
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -111,22 +116,28 @@ const App: React.FC = () => {
 
   // Check authentication on load
   useEffect(() => {
-    const userData = localStorage.getItem('relationshipops_user');
-    if (userData) {
+    const authData = localStorage.getItem('relationshipops_auth');
+    if (authData) {
       try {
-        const user = JSON.parse(userData);
+        const { user } = JSON.parse(authData);
+        const storedUsers = JSON.parse(localStorage.getItem('relationshipops_users') || '[]');
+        setUsers(storedUsers.length > 0 ? storedUsers : users);
         setCurrentUser(user);
         setIsAuthenticated(true);
         loadData();
       } catch (error) {
-        console.error('Error parsing user data:', error);
-        localStorage.removeItem('relationshipops_user');
+        localStorage.removeItem('relationshipops_auth');
         setLoading(false);
       }
     } else {
       setLoading(false);
     }
   }, []);
+
+  // Save users to localStorage whenever users state changes
+  useEffect(() => {
+    localStorage.setItem('relationshipops_users', JSON.stringify(users));
+  }, [users]);
 
   // Reset to first page when search or filter changes
   useEffect(() => {
@@ -158,7 +169,7 @@ const App: React.FC = () => {
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
-      localStorage.setItem('relationshipops_user', JSON.stringify(user));
+      localStorage.setItem('relationshipops_auth', JSON.stringify({ user }));
       setLoginError('');
       loadData();
     } else {
@@ -169,9 +180,92 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('relationshipops_user');
+    localStorage.removeItem('relationshipops_auth');
     setLoginForm({ email: '', password: '' });
-    setCurrentView('dashboard');
+    setActiveTab('dashboard');
+  };
+
+  // User management functions
+  const handleCreateUser = () => {
+    if (!newUser.email || !newUser.password) return;
+    
+    const userExists = users.some(u => u.email === newUser.email);
+    if (userExists) {
+      alert('User with this email already exists');
+      return;
+    }
+
+    const userData: AppUser = {
+      email: newUser.email,
+      password: newUser.password,
+      role: newUser.role,
+      ...(newUser.role === 'Member' && newUser.allowedEmails.length > 0 && {
+        allowedEmails: newUser.allowedEmails
+      })
+    };
+
+    setUsers([...users, userData]);
+    setNewUser({
+      email: '',
+      password: '',
+      role: 'Member',
+      allowedEmails: []
+    });
+    setShowCreateUser(false);
+  };
+
+  const handleDeleteUser = (email: string) => {
+    if (currentUser?.email === email) {
+      alert('Cannot delete your own account');
+      return;
+    }
+    
+    if (confirm('Are you sure you want to delete this user?')) {
+      setUsers(users.filter(u => u.email !== email));
+    }
+  };
+
+  const handleEditUser = (user: AppUser) => {
+    setEditingUser({ ...user });
+  };
+
+  const handleUpdateUser = () => {
+    if (!editingUser) return;
+    
+    setUsers(users.map(u => u.email === editingUser.email ? editingUser : u));
+    setEditingUser(null);
+  };
+
+  const handleChangePassword = () => {
+    if (!currentUser) return;
+    
+    if (currentUser.password !== passwordForm.currentPassword) {
+      alert('Current password is incorrect');
+      return;
+    }
+    
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+    
+    if (passwordForm.newPassword.length < 6) {
+      alert('New password must be at least 6 characters long');
+      return;
+    }
+
+    const updatedUser = { ...currentUser, password: passwordForm.newPassword };
+    setUsers(users.map(u => u.email === currentUser.email ? updatedUser : u));
+    setCurrentUser(updatedUser);
+    localStorage.setItem('relationshipops_auth', JSON.stringify({ user: updatedUser }));
+    
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setShowChangePassword(false);
+    alert('Password changed successfully');
   };
 
   const loadData = async () => {
@@ -200,33 +294,30 @@ const App: React.FC = () => {
 
   const loadUniqueClientEmails = async () => {
     try {
-      console.log('📧 Loading unique client emails from database...');
-      
       const { data, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('client_email')
         .not('client_email', 'is', null)
-        .neq('client_email', '');
+        .neq('client_email', '')
+        .limit(100000); // Fetch all records
 
-      if (error) {
-        console.error('❌ Supabase error loading unique client emails:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      // Get unique emails
-      const uniqueEmails = [...new Set(data?.map(contact => contact.client_email).filter(Boolean))];
-      console.log('✅ Unique client emails loaded:', uniqueEmails.length, 'emails');
+      console.log('Fetched unique client emails data length:', data?.length || 0);
+      
+      // Get unique emails with normalization
+      const uniqueEmails = [...new Set(
+        data?.map(contact => contact.client_email?.trim().toLowerCase()).filter(Boolean)
+      )];
       setUniqueClientEmails(uniqueEmails);
     } catch (error) {
-      console.error('❌ Error loading unique client emails:', error);
+      console.error('Error loading unique client emails:', error);
       setUniqueClientEmails([]);
     }
   };
 
   const loadSentContactsCount = async () => {
     try {
-      console.log('📤 Loading sent contacts count from database...');
-      
       const { count, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true })
@@ -234,73 +325,52 @@ const App: React.FC = () => {
         .neq('sent_to_client', '')
         .neq('sent_to_client', '-');
 
-      if (error) {
-        console.error('❌ Supabase error loading sent contacts count:', error);
-        throw error;
-      }
-      
-      console.log('✅ Sent contacts count from database:', count);
+      if (error) throw error;
       setSentContactsCount(count || 0);
     } catch (error) {
-      console.error('❌ Error loading sent contacts count:', error);
+      console.error('Error loading sent contacts count:', error);
       setSentContactsCount(0);
     }
   };
 
   const loadContactCountsByEmail = async () => {
     try {
-      console.log('📊 Loading contact counts by email from database...');
-      
-      // Get aggregated counts directly from database for better performance
       const { data, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('client_email')
-        .not('client_email', 'is', null)
-        .neq('client_email', '');
+        .limit(100000); // Fetch all records
 
-      if (error) {
-        console.error('❌ Supabase error loading contact counts by email:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      // Count contacts per email
+      console.log('Fetched contact counts data length:', data?.length || 0);
+      
+      // Count contacts per email with normalization
       const counts: ContactCountByEmail = {};
       data?.forEach(contact => {
-        const email = contact.client_email || 'unknown';
+        const email = contact.client_email?.trim().toLowerCase() || 'unknown';
         counts[email] = (counts[email] || 0) + 1;
       });
       
-      console.log('✅ Contact counts by email loaded:', counts);
-      console.log('📈 Summary of counts by email:');
-      Object.entries(counts).forEach(([email, count]) => {
-        console.log(`   📧 ${email}: ${count} contacts`);
-      });
-      
+      console.log('Contact counts by email:', counts);
       setContactCountsByEmail(counts);
     } catch (error) {
-      console.error('❌ Error loading contact counts by email:', error);
+      console.error('Error loading contact counts by email:', error);
       setContactCountsByEmail({});
     }
   };
 
   const loadTotalContactsCount = async () => {
     try {
-      console.log('📊 Loading total contacts count from Supabase...');
-      
       const { count, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true });
 
-      if (error) {
-        console.error('❌ Supabase error loading total contacts count:', error);
-        throw error;
-      }
-      
-      console.log('✅ Total contacts count from database:', count);
+      if (error) throw error;
+      console.log('Total contacts count from Supabase:', count);
       setTotalContactsCount(count || 0);
     } catch (error) {
-      console.error('❌ Error loading total contacts count:', error);
-      console.log('🔄 Falling back to contacts array length...');
+      console.error('Error loading total contacts count:', error);
+      // Fallback to filtered contacts length if Supabase fails
       setTotalContactsCount(contacts.length);
     }
   };
@@ -310,7 +380,8 @@ const App: React.FC = () => {
       const { data, error } = await supabase
         .from('client_details')
         .select('email_address, full_name, first_name, last_name')
-        .order('full_name');
+        .order('full_name')
+        .limit(100000); // Fetch all records
 
       if (error) throw error;
       setClients(data || []);
@@ -339,9 +410,11 @@ const App: React.FC = () => {
       const { data, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*')
-        .order('total_lead_score', { ascending: false });
+        .order('total_lead_score', { ascending: false })
+        .limit(100000); // Fetch all records
 
       if (error) throw error;
+      console.log('Fetched contacts data length:', data?.length || 0);
       setContacts(data || []);
     } catch (error) {
       console.error('Error loading contacts:', error);
@@ -413,77 +486,6 @@ const App: React.FC = () => {
     loadData();
   };
 
-  // User management functions
-  const handleAddUser = () => {
-    if (!newUser.email || !newUser.password || !newUser.name) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    if (users.some(u => u.email === newUser.email)) {
-      alert('User with this email already exists');
-      return;
-    }
-
-    const updatedUsers = [...users, { ...newUser }];
-    setUsers(updatedUsers);
-    setNewUser({
-      email: '',
-      password: '',
-      role: 'member',
-      name: '',
-      allowedEmails: []
-    });
-    setShowAddUser(false);
-  };
-
-  const handleDeleteUser = (email: string) => {
-    if (email === currentUser?.email) {
-      alert('You cannot delete your own account');
-      return;
-    }
-    
-    if (confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(u => u.email !== email));
-    }
-  };
-
-  const handleChangePassword = () => {
-    if (!newPassword) {
-      alert('Please enter a new password');
-      return;
-    }
-
-    const updatedUsers = users.map(u => 
-      u.email === changePasswordUser?.email 
-        ? { ...u, password: newPassword }
-        : u
-    );
-    setUsers(updatedUsers);
-    
-    if (changePasswordUser?.email === currentUser?.email) {
-      const updatedCurrentUser = { ...currentUser, password: newPassword };
-      setCurrentUser(updatedCurrentUser);
-      localStorage.setItem('relationshipops_user', JSON.stringify(updatedCurrentUser));
-    }
-    
-    setChangePasswordUser(null);
-    setNewPassword('');
-  };
-
-  const handleToggleEmailAccess = (userEmail: string, clientEmail: string) => {
-    const updatedUsers = users.map(user => {
-      if (user.email === userEmail) {
-        const allowedEmails = user.allowedEmails.includes(clientEmail)
-          ? user.allowedEmails.filter(email => email !== clientEmail)
-          : [...user.allowedEmails, clientEmail];
-        return { ...user, allowedEmails };
-      }
-      return user;
-    });
-    setUsers(updatedUsers);
-  };
-
   // Use unique client emails from the contacts table instead of client_details
   const clientOptions = uniqueClientEmails.map(email => ({
     value: email,
@@ -500,34 +502,38 @@ const App: React.FC = () => {
     return lastInteraction < sixMonthsAgo;
   };
 
-  // Filter contacts based on search, selected client, and user permissions
-  const getFilteredContacts = () => {
-    let filtered = contacts.filter(contact => {
-      const matchesSearch = !searchTerm || 
-        contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.work_email?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesClient = selectedClient === 'all' || contact.client_email === selectedClient;
-      
-      // Check user permissions
-      let hasPermission = true;
-      if (currentUser?.role === 'member' && currentUser.allowedEmails.length > 0) {
-        hasPermission = currentUser.allowedEmails.includes(contact.client_email || '');
-      }
-      
-      return matchesSearch && matchesClient && hasPermission;
-    });
-
-    return filtered;
+  // Helper function to get lead score color
+  const getLeadScoreColor = (score: number | undefined): string => {
+    if (!score) return 'bg-red-100 text-red-800';
+    if (score >= 80) return 'bg-green-100 text-green-800';
+    if (score >= 50) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
   };
 
-  const filteredContacts = getFilteredContacts();
+  // Filter contacts based on search, selected client, and user permissions
+  const filteredContacts = contacts.filter(contact => {
+    const matchesSearch = !searchTerm || 
+      contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.work_email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const normalizedContactEmail = contact.client_email?.trim().toLowerCase();
+    const normalizedSelectedClient = selectedClient?.trim().toLowerCase();
+    const matchesClient = selectedClient === 'all' || normalizedContactEmail === normalizedSelectedClient;
+    
+    // Check user permissions
+    const hasAccess = currentUser?.role === 'Admin' || 
+      !currentUser?.allowedEmails || 
+      currentUser.allowedEmails.length === 0 ||
+      currentUser.allowedEmails.some(allowed => allowed.trim().toLowerCase() === normalizedContactEmail);
+    
+    return matchesSearch && matchesClient && hasAccess;
+  });
 
   // Group contacts by client email
   const groupedContacts = filteredContacts.reduce((acc, contact) => {
-    const email = contact.client_email || 'unknown';
+    const email = contact.client_email?.trim().toLowerCase() || 'unknown';
     if (!acc[email]) {
       acc[email] = [];
     }
@@ -547,23 +553,49 @@ const App: React.FC = () => {
     return acc;
   }, {} as Record<string, Contact[]>);
 
-  // Calculate metrics - these stay constant regardless of search/filter
+  // Get allowed client emails for current user
+  const getAllowedClientEmails = () => {
+    if (currentUser?.role === 'Admin') {
+      return uniqueClientEmails;
+    }
+    if (currentUser?.allowedEmails && currentUser.allowedEmails.length > 0) {
+      return currentUser.allowedEmails.filter(email => 
+        uniqueClientEmails.includes(email.trim().toLowerCase())
+      );
+    }
+    return uniqueClientEmails;
+  };
+
+  // Calculate metrics - these stay constant regardless of search/filter but respect user permissions
+  const allowedEmails = getAllowedClientEmails();
+  const allowedContacts = contacts.filter(contact => {
+    const normalizedContactEmail = contact.client_email?.trim().toLowerCase();
+    return currentUser?.role === 'Admin' || 
+      !currentUser?.allowedEmails || 
+      currentUser.allowedEmails.length === 0 ||
+      allowedEmails.some(allowed => allowed.trim().toLowerCase() === normalizedContactEmail);
+  });
+
   const metricsData = [
     {
       title: 'Account Groups',
-      value: uniqueClientEmails.length // Total unique account groups
+      value: allowedEmails.length // Allowed account groups for current user
     },
     {
       title: 'Total Contacts', 
-      value: totalContactsCount // Total count from database, not filtered
+      value: allowedContacts.length // Total allowed contacts for current user
     },
     {
       title: 'Relevant Leads',
-      value: contacts.filter(contact => isRelevantLead(contact)).length // From all contacts, not filtered
+      value: allowedContacts.filter(contact => isRelevantLead(contact)).length // From allowed contacts
     },
     {
       title: 'Sent Contacts',
-      value: sentContactsCount // Total sent contacts from database
+      value: allowedContacts.filter(contact => 
+        contact.sent_to_client && 
+        contact.sent_to_client !== '' && 
+        contact.sent_to_client !== '-'
+      ).length // Sent contacts from allowed contacts
     }
   ];
 
@@ -604,10 +636,8 @@ const App: React.FC = () => {
 
   // Editing functions
   const handleEditField = (fieldName: string) => {
-    if (currentUser?.role === 'member') {
-      alert('Members do not have permission to edit fields');
-      return;
-    }
+    if (currentUser?.role !== 'Admin') return; // Only admin can edit
+    
     const newEditingFields = new Set(editingFields);
     newEditingFields.add(fieldName);
     setEditingFields(newEditingFields);
@@ -660,16 +690,8 @@ const App: React.FC = () => {
     }
   };
 
-  // Get lead score color
-  const getLeadScoreColor = (score: number | undefined) => {
-    if (!score) return 'bg-gray-100 text-gray-800';
-    if (score >= 80) return 'bg-green-100 text-green-800';
-    if (score >= 50) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
-
   // Format date function
-  const formatDate = (dateString: string | null | undefined) => {
+  const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
@@ -791,18 +813,12 @@ const App: React.FC = () => {
   }> = ({ label, fieldName, value, isRight = false, isLink = false, type = 'text' }) => {
     const isEditing = editingFields.has(fieldName);
     const displayValue = editedContact?.[fieldName as keyof Contact] || value || 'N/A';
-
-    const renderValue = () => {
-      if (fieldName === 'last_interaction_date' || fieldName === 'exact_sent_date' || fieldName === 'created_at') {
-        return formatDate(value as string);
-      }
-      return displayValue;
-    };
+    const canEdit = currentUser?.role === 'Admin';
 
     return (
       <div className="flex justify-between items-start group">
-        <span className="text-sm text-gray-500 pt-1 flex-shrink-0 mr-4">{label}:</span>
-        <div className="flex items-start flex-1 min-w-0">
+        <span className="text-sm text-gray-500 pt-1 min-w-[120px]">{label}:</span>
+        <div className="flex items-start flex-1 ml-4">
           {isEditing ? (
             <div className="flex flex-col gap-2 w-full">
               {type === 'textarea' ? (
@@ -836,11 +852,11 @@ const App: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-end w-full min-w-0">
+            <div className="flex items-center justify-end w-full">
               {isLink && fieldName === 'work_email' ? (
                 <a 
                   href={`mailto:${displayValue}`}
-                  className="text-sm text-blue-600 text-right hover:underline truncate"
+                  className="text-sm text-blue-600 text-right hover:underline break-all"
                 >
                   {displayValue}
                 </a>
@@ -849,18 +865,18 @@ const App: React.FC = () => {
                   href={`https://${displayValue}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 text-right hover:underline truncate"
+                  className="text-sm text-blue-600 text-right hover:underline break-all"
                 >
                   {displayValue}
                 </a>
               ) : isLink ? (
-                <span className="text-sm text-blue-600 text-right truncate">{displayValue}</span>
+                <span className="text-sm text-blue-600 text-right break-all">{displayValue}</span>
               ) : (
-                <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''} truncate`}>
-                  {renderValue()}
+                <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''} break-words`}>
+                  {displayValue}
                 </span>
               )}
-              {currentUser?.role === 'admin' && (
+              {canEdit && (
                 <button
                   onClick={() => handleEditField(fieldName)}
                   className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600 flex-shrink-0"
@@ -884,6 +900,7 @@ const App: React.FC = () => {
   }> = ({ label, fieldName, href, target = "_blank" }) => {
     const isEditing = editingFields.has(fieldName);
     const displayValue = editedContact?.[fieldName as keyof Contact] || href || '';
+    const canEdit = currentUser?.role === 'Admin';
 
     return (
       <div className="pt-4 group">
@@ -922,7 +939,7 @@ const App: React.FC = () => {
               <ExternalLink className="w-4 h-4 mr-1" />
               {label}
             </a>
-            {currentUser?.role === 'admin' && (
+            {canEdit && (
               <button
                 onClick={() => handleEditField(fieldName)}
                 className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600"
@@ -1017,65 +1034,78 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col">
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="text-lg font-semibold text-gray-900">RelationshipOps</h1>
-          <p className="text-sm text-gray-500">Powered By VeraOps</p>
-        </div>
-        
-        <nav className="flex-1 p-4">
-          <div className="space-y-1">
+      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white shadow-lg transition-all duration-300 flex flex-col`}>
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            {sidebarOpen && (
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">RelationshipOps</h1>
+                <p className="text-sm text-gray-500">Powered By VeraOps</p>
+              </div>
+            )}
             <button
-              onClick={() => setCurrentView('dashboard')}
-              className={`w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                currentView === 'dashboard'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg hover:bg-gray-100"
             >
-              <Home className="w-4 h-4 mr-3" />
-              Dashboard
+              <Menu className="w-5 h-5" />
             </button>
-            
-            {currentUser?.role === 'admin' && (
+          </div>
+        </div>
+
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            <li>
               <button
-                onClick={() => setCurrentView('settings')}
-                className={`w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  currentView === 'settings'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                onClick={() => setActiveTab('dashboard')}
+                className={`w-full flex items-center px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <Settings className="w-4 h-4 mr-3" />
-                Settings
+                <BarChart3 className="w-5 h-5 mr-3" />
+                {sidebarOpen && <span>Dashboard</span>}
               </button>
+            </li>
+            {currentUser?.role === 'Admin' && (
+              <li>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`w-full flex items-center px-3 py-2 rounded-lg text-left transition-colors ${
+                    activeTab === 'settings' 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Settings className="w-5 h-5 mr-3" />
+                  {sidebarOpen && <span>Settings</span>}
+                </button>
+              </li>
             )}
-          </div>
+          </ul>
         </nav>
 
         <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center mb-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-white" />
+          {sidebarOpen && (
+            <div className="mb-3">
+              <p className="text-sm text-gray-500">Signed in as</p>
+              <p className="text-sm font-medium text-gray-900">{currentUser?.email}</p>
+              <p className="text-xs text-gray-400">{currentUser?.role}</p>
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-900">{currentUser?.name}</p>
-              <p className="text-xs text-gray-500 capitalize">{currentUser?.role}</p>
-            </div>
-          </div>
+          )}
           <button
             onClick={handleLogout}
-            className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full flex items-center px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
-            <LogOut className="w-4 h-4 mr-3" />
-            Logout
+            <LogOut className="w-5 h-5 mr-3" />
+            {sidebarOpen && <span>Logout</span>}
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {currentView === 'dashboard' ? (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {activeTab === 'dashboard' ? (
           <>
             {/* Header */}
             <div className="bg-white shadow-sm border-b border-gray-200">
@@ -1083,7 +1113,7 @@ const App: React.FC = () => {
                 <div className="flex justify-between items-center py-6">
                   <div>
                     <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                    <p className="text-gray-600 mt-1">Contact relationship management</p>
+                    <p className="text-gray-600 mt-1">Contact Management</p>
                   </div>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
@@ -1100,7 +1130,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Dashboard Content */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-y-auto">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -1130,7 +1160,11 @@ const App: React.FC = () => {
                     <CustomDropdown
                       value={selectedClient}
                       onChange={setSelectedClient}
-                      options={clientOptions}
+                      options={allowedEmails.map(email => ({
+                        value: email,
+                        label: email,
+                        icon: <User className="w-4 h-4" />
+                      }))}
                       placeholder="All Account Emails"
                     />
                   </div>
@@ -1284,218 +1318,300 @@ const App: React.FC = () => {
             </div>
           </>
         ) : (
-          /* Settings View */
-          <div className="flex-1 overflow-auto">
+          /* Settings Tab */
+          <div className="flex-1 overflow-y-auto">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
               <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-                <p className="text-gray-600 mt-1">Manage users and permissions</p>
+                <p className="text-gray-600 mt-1">Manage users and access permissions</p>
               </div>
 
+              {/* Change Password Section */}
+              <div className="bg-white rounded-lg shadow mb-8">
+                <div className="p-6 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-900">Change Password</h2>
+                  <p className="text-sm text-gray-500 mt-1">Update your account password</p>
+                </div>
+                <div className="p-6">
+                  {!showChangePassword ? (
+                    <button
+                      onClick={() => setShowChangePassword(true)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      Change Password
+                    </button>
+                  ) : (
+                    <div className="space-y-4 max-w-md">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                        <input
+                          type="password"
+                          value={passwordForm.currentPassword}
+                          onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                        <input
+                          type="password"
+                          value={passwordForm.newPassword}
+                          onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                        <input
+                          type="password"
+                          value={passwordForm.confirmPassword}
+                          onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleChangePassword}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Update Password
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowChangePassword(false);
+                            setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                          }}
+                          className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* User Management Section */}
               <div className="bg-white rounded-lg shadow">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-gray-900">User Management</h2>
-                  <button
-                    onClick={() => setShowAddUser(true)}
-                    className="inline-flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add User
-                  </button>
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">User Management</h2>
+                      <p className="text-sm text-gray-500 mt-1">Manage dashboard users and their permissions</p>
+                    </div>
+                    <button
+                      onClick={() => setShowCreateUser(true)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create User
+                    </button>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          User
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Role
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email Access
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {users.map((user) => (
-                        <tr key={user.email}>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                {/* Create User Form */}
+                {showCreateUser && (
+                  <div className="p-6 bg-gray-50 border-b border-gray-200">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={newUser.email}
+                          onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="user@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input
+                          type="password"
+                          value={newUser.password}
+                          onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                        <select
+                          value={newUser.role}
+                          onChange={(e) => setNewUser({...newUser, role: e.target.value as 'Admin' | 'Member'})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="Member">Member</option>
+                          <option value="Admin">Admin</option>
+                        </select>
+                      </div>
+                      {newUser.role === 'Member' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Allowed Emails (Optional)</label>
+                          <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                            {uniqueClientEmails.map(email => (
+                              <label key={email} className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={newUser.allowedEmails.includes(email)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewUser({
+                                        ...newUser,
+                                        allowedEmails: [...newUser.allowedEmails, email]
+                                      });
+                                    } else {
+                                      setNewUser({
+                                        ...newUser,
+                                        allowedEmails: newUser.allowedEmails.filter(e => e !== email)
+                                      });
+                                    }
+                                  }}
+                                  className="mr-2"
+                                />
+                                <span className="text-sm">{email}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Leave empty to allow access to all emails</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={handleCreateUser}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Create User
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCreateUser(false);
+                          setNewUser({ email: '', password: '', role: 'Member', allowedEmails: [] });
+                        }}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Users List */}
+                <div className="divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <div key={user.email} className="p-6">
+                      {editingUser?.email === user.email ? (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                              <input
+                                type="email"
+                                value={editingUser.email}
+                                onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                disabled
+                              />
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                            }`}>
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {user.role === 'admin' ? (
-                              <span className="text-sm text-gray-500">All accounts</span>
-                            ) : (
-                              <div className="space-y-2">
-                                {uniqueClientEmails.map((email) => (
-                                  <label key={email} className="flex items-center space-x-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={user.allowedEmails.includes(email)}
-                                      onChange={() => handleToggleEmailAccess(user.email, email)}
-                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm text-gray-700">{email}</span>
-                                  </label>
-                                ))}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                              <select
+                                value={editingUser.role}
+                                onChange={(e) => setEditingUser({...editingUser, role: e.target.value as 'Admin' | 'Member'})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="Member">Member</option>
+                                <option value="Admin">Admin</option>
+                              </select>
+                            </div>
+                            {editingUser.role === 'Member' && (
+                              <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Allowed Emails</label>
+                                <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                                  {uniqueClientEmails.map(email => (
+                                    <label key={email} className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={editingUser.allowedEmails?.includes(email) || false}
+                                        onChange={(e) => {
+                                          const currentAllowed = editingUser.allowedEmails || [];
+                                          if (e.target.checked) {
+                                            setEditingUser({
+                                              ...editingUser,
+                                              allowedEmails: [...currentAllowed, email]
+                                            });
+                                          } else {
+                                            setEditingUser({
+                                              ...editingUser,
+                                              allowedEmails: currentAllowed.filter(e => e !== email)
+                                            });
+                                          }
+                                        }}
+                                        className="mr-2"
+                                      />
+                                      <span className="text-sm">{email}</span>
+                                    </label>
+                                  ))}
+                                </div>
                               </div>
                             )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          </div>
+                          <div className="flex gap-2">
                             <button
-                              onClick={() => setChangePasswordUser(user)}
-                              className="text-blue-600 hover:text-blue-900"
+                              onClick={handleUpdateUser}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                             >
-                              Change Password
+                              Save Changes
                             </button>
-                            {user.email !== currentUser?.email && (
+                            <button
+                              onClick={() => setEditingUser(null)}
+                              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-lg font-medium text-gray-900">{user.email}</h3>
+                              {currentUser?.email === user.email && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">You</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">Role: {user.role}</p>
+                            {user.role === 'Member' && user.allowedEmails && user.allowedEmails.length > 0 && (
+                              <p className="text-sm text-gray-600">
+                                Access to: {user.allowedEmails.length} specific email{user.allowedEmails.length !== 1 ? 's' : ''}
+                              </p>
+                            )}
+                            {user.role === 'Member' && (!user.allowedEmails || user.allowedEmails.length === 0) && (
+                              <p className="text-sm text-gray-600">Access to: All emails</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="p-2 text-blue-600 hover:text-blue-800 rounded-lg hover:bg-blue-50"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            {currentUser?.email !== user.email && (
                               <button
                                 onClick={() => handleDeleteUser(user.email)}
-                                className="text-red-600 hover:text-red-900"
+                                className="p-2 text-red-600 hover:text-red-800 rounded-lg hover:bg-red-50"
                               >
-                                Delete
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add User Modal */}
-        {showAddUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg w-full max-w-md">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Add New User</h3>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.name}
-                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Role
-                  </label>
-                  <select
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({...newUser, role: e.target.value as 'admin' | 'member'})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-              <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowAddUser(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddUser}
-                  className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  Add User
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Change Password Modal */}
-        {changePasswordUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg w-full max-w-md">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Changing password for {changePasswordUser.name}
-                </p>
-              </div>
-              <div className="p-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter new password"
-                  />
-                </div>
-              </div>
-              <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setChangePasswordUser(null);
-                    setNewPassword('');
-                  }}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleChangePassword}
-                  className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  Update Password
-                </button>
               </div>
             </div>
           </div>
@@ -1533,8 +1649,8 @@ const App: React.FC = () => {
               <div className="p-6">
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: '1.2fr 1.5fr 2fr', // Lead Info: 1.2 units, Company Info: 1.5 units, Daily Digest: 2 units
-                  gap: '2rem'
+                  gridTemplateColumns: '1.5fr 1.5fr 2fr', // More space for Lead Info and Company Info
+                  gap: '3rem' // More spacing between sections
                 }}>
                   {/* Lead Information */}
                   <div>
@@ -1547,7 +1663,7 @@ const App: React.FC = () => {
                       <EditableField label="First Name" fieldName="first_name" value={selectedContact.first_name} isRight />
                       <EditableField label="Last Name" fieldName="last_name" value={selectedContact.last_name} isRight />
                       <EditableField label="Job Title" fieldName="job_title" value={selectedContact.job_title} isRight />
-                      <EditableField label="Work Email" fieldName="work_email" value={selectedContact.work_email} isLink isRight />
+                      <EditableField label="Work Email" fieldName="work_email" value={selectedContact.work_email} isRight isLink />
                       <EditableField label="Country" fieldName="lead_country" value={selectedContact.lead_country} isRight />
                       <EditableField label="LinkedIn Connections" fieldName="connection_count" value={selectedContact.connection_count} isRight />
                       <EditableField label="LinkedIn Followers" fieldName="followers_count" value={selectedContact.followers_count} isRight />
@@ -1567,7 +1683,7 @@ const App: React.FC = () => {
                     </h4>
                     <div className="space-y-3">
                       <EditableField label="Company Name" fieldName="company_name" value={selectedContact.company_name} isRight />
-                      <EditableField label="Company Domain" fieldName="company_domain" value={selectedContact.company_domain} isLink isRight />
+                      <EditableField label="Company Domain" fieldName="company_domain" value={selectedContact.company_domain} isRight isLink />
                       <EditableField label="Company Industry" fieldName="company_industry" value={selectedContact.company_industry} isRight />
                       <EditableField label="Company Staff Range" fieldName="company_staff_count_range" value={selectedContact.company_staff_count_range} isRight />
                       <EditableLink 
@@ -1596,7 +1712,7 @@ const App: React.FC = () => {
                       <EditableField 
                         label="Last Interaction Date" 
                         fieldName="last_interaction_date"
-                        value={selectedContact.last_interaction_date}
+                        value={formatDate(selectedContact.last_interaction_date)}
                         isRight
                       />
                       <EditableField 
@@ -1621,11 +1737,16 @@ const App: React.FC = () => {
                         type="textarea"
                       />
                       <EditableField label="Sent to Client" fieldName="sent_to_client" value={selectedContact.sent_to_client} isRight />
-                      <EditableField label="Sent Date" fieldName="exact_sent_date" value={selectedContact.exact_sent_date} isRight />
+                      <EditableField 
+                        label="Sent Date" 
+                        fieldName="exact_sent_date" 
+                        value={formatDate(selectedContact.exact_sent_date)} 
+                        isRight
+                      />
                       <EditableField 
                         label="Added On" 
                         fieldName="created_at"
-                        value={selectedContact.created_at}
+                        value={formatDate(selectedContact.created_at)}
                         isRight
                       />
                     </div>
