@@ -17,6 +17,14 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
     }));
   };
 
+  const getScoreStyles = (score?: number) => {
+    if (!score) return 'bg-gray-100 text-gray-500';
+    if (score >= 90) return 'bg-green-500 text-white';
+    if (score >= 80) return 'bg-blue-500 text-white';
+    if (score >= 70) return 'bg-yellow-500 text-white';
+    return 'bg-red-500 text-white';
+  };
+
   const getLeadsAbove80Count = (contacts: Contact[]) => {
     return contacts.filter(contact => (contact.total_lead_score || contact.lead_score || 0) >= 80).length;
   };
@@ -107,7 +115,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
                             </div>
                             
                             <div className="col-span-1">
-                              <span className="inline-flex items-center justify-center w-10 h-10 bg-black text-white rounded-full text-sm font-bold">
+                              <span className={`inline-flex items-center justify-center w-12 h-12 rounded-full text-sm font-bold ${getScoreStyles(contact.total_lead_score || contact.lead_score)}`}>
                                 {contact.total_lead_score || contact.lead_score || 'N/A'}
                               </span>
                             </div>
