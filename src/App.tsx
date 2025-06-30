@@ -62,6 +62,7 @@ const App: React.FC = () => {
   const [sentContactsCount, setSentContactsCount] = useState<number>(0);
   const [contactCountsByEmail, setContactCountsByEmail] = useState<ContactCountByEmail>({});
   const [uniqueClientEmails, setUniqueClientEmails] = useState<string[]>([]);
+  const [filteredContactsCount, setFilteredContactsCount] = useState<number>(0);
 
   // Check authentication on load
   useEffect(() => {
@@ -116,196 +117,227 @@ const App: React.FC = () => {
     setLoginForm({ username: '', password: '' });
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        loadClients(), 
-        loadContacts(), 
-        loadTotalContactsCount(), 
-        loadSentContactsCount(),
-        loadContactCountsByEmail(),
-        loadUniqueClientEmails()
-      ]);
-      setLastUpdated(new Date().toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-      }));
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
+  // CONSISTENT COUNTING FUNCTIONS
+  const getBaseContactQuery = () => {
+    return supabase.from('icp_contacts_tracking_in_progress');
   };
 
-  const loadUniqueClientEmails = async () => {
+  const getTotalContactsCount = async (): Promise<number> => {
     try {
-      console.log('🔍 Loading unique client emails...');
-      const { data, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('client_email')
-        .not('client_email', 'is', null)
-        .neq('client_email', '');
+      console.log('🔢 Getting total contacts count...');
+      const { count, error } = await getBaseContactQuery()
+        .select('*', { count: 'exact', head: true });
 
       if (error) {
-        console.error('❌ Error loading unique client emails:', error);
+        console.error('❌ Error getting total count:', error);
         throw error;
       }
       
-      console.log('📊 Total records with non-null client_email:', data?.length || 0);
-      
-      // Get unique emails
-      const uniqueEmails = [...new Set(data?.map(contact => contact.client_email).filter(Boolean))];
-      console.log('📧 Unique client emails found:', uniqueEmails.length);
-      console.log('📧 Unique emails list:', uniqueEmails);
-      
-      setUniqueClientEmails(uniqueEmails);
+      const totalCount = count || 0;
+      console.log('🔢 Total contacts count:', totalCount);
+      return totalCount;
     } catch (error) {
-      console.error('Error loading unique client emails:', error);
-      setUniqueClientEmails([]);
+      console.error('❌ Error in getTotalContactsCount:', error);
+      return 0;
     }
   };
 
-  const loadSentContactsCount = async () => {
+  const getSentContactsCount = async (): Promise<number> => {
     try {
-      console.log('📤 Loading sent contacts count...');
-      const { count, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
+      console.log('📤 Getting sent contacts count...');
+      const { count, error } = await getBaseContactQuery()
         .select('*', { count: 'exact', head: true })
         .not('sent_to_client', 'is', null)
         .neq('sent_to_client', '')
         .neq('sent_to_client', '-');
 
       if (error) {
-        console.error('❌ Error loading sent contacts count:', error);
+        console.error('❌ Error getting sent count:', error);
         throw error;
       }
       
-      console.log('📤 Sent contacts count:', count || 0);
-      setSentContactsCount(count || 0);
+      const sentCount = count || 0;
+      console.log('📤 Sent contacts count:', sentCount);
+      return sentCount;
     } catch (error) {
-      console.error('Error loading sent contacts count:', error);
-      setSentContactsCount(0);
+      console.error('❌ Error in getSentContactsCount:', error);
+      return 0;
     }
   };
 
-  const loadContactCountsByEmail = async () => {
+  const getContactCountByEmail = async (email: string): Promise<number> => {
     try {
-      console.log('📊 Loading contact counts by email...');
-      
-      // First, let's get ALL records to see what we're working with
-      const { data: allData, error: allError } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('client_email, linkedin_profile_url');
-
-      if (allError) {
-        console.error('❌ Error loading all contacts for count:', allError);
-        throw allError;
-      }
-
-      console.log('📊 Total records fetched for counting:', allData?.length || 0);
-
-      // Count all records by email (including null/empty)
-      const allCounts: ContactCountByEmail = {};
-      allData?.forEach(contact => {
-        const email = contact.client_email || 'null_or_empty';
-        allCounts[email] = (allCounts[email] || 0) + 1;
-      });
-
-      console.log('📊 All counts (including null/empty):', allCounts);
-
-      // Now let's specifically check Peter Kang's email
-      const peterEmail = 'peter.kang@barrelny.com';
-      console.log(`🎯 Checking specifically for ${peterEmail}...`);
-
-      // Direct count query for Peter Kang
-      const { count: peterDirectCount, error: peterError } = await supabase
-        .from('icp_contacts_tracking_in_progress')
+      console.log(`📧 Getting count for email: ${email}`);
+      const { count, error } = await getBaseContactQuery()
         .select('*', { count: 'exact', head: true })
-        .eq('client_email', peterEmail);
+        .eq('client_email', email);
 
-      if (peterError) {
-        console.error('❌ Error counting Peter Kang contacts:', peterError);
-      } else {
-        console.log(`🎯 Direct count for ${peterEmail}:`, peterDirectCount);
+      if (error) {
+        console.error(`❌ Error getting count for ${email}:`, error);
+        throw error;
       }
+      
+      const emailCount = count || 0;
+      console.log(`📧 Count for ${email}:`, emailCount);
+      return emailCount;
+    } catch (error) {
+      console.error(`❌ Error in getContactCountByEmail for ${email}:`, error);
+      return 0;
+    }
+  };
 
-      // Let's also check for variations of Peter's email
-      const { data: peterVariations, error: peterVarError } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('client_email, linkedin_profile_url')
-        .ilike('client_email', '%peter.kang%');
-
-      if (peterVarError) {
-        console.error('❌ Error checking Peter email variations:', peterVarError);
-      } else {
-        console.log('🔍 Peter email variations found:', peterVariations?.length || 0);
-        console.log('🔍 Variations:', peterVariations?.map(v => v.client_email).slice(0, 10));
-      }
-
-      // Let's also check for case sensitivity issues
-      const { data: peterCaseCheck, error: peterCaseError } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('client_email, linkedin_profile_url')
-        .or(`client_email.eq.${peterEmail},client_email.eq.Peter.Kang@barrelny.com,client_email.eq.PETER.KANG@BARRELNY.COM`);
-
-      if (peterCaseError) {
-        console.error('❌ Error checking Peter case sensitivity:', peterCaseError);
-      } else {
-        console.log('🔍 Peter case sensitivity check:', peterCaseCheck?.length || 0);
-        const uniqueCases = [...new Set(peterCaseCheck?.map(v => v.client_email))];
-        console.log('🔍 Unique case variations:', uniqueCases);
-      }
-
-      // Filter out null/empty for the main counts
-      const { data, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
+  const getAllContactCountsByEmail = async (): Promise<ContactCountByEmail> => {
+    try {
+      console.log('📊 Getting all contact counts by email...');
+      
+      // First get all unique emails
+      const { data: emailData, error: emailError } = await getBaseContactQuery()
         .select('client_email')
         .not('client_email', 'is', null)
         .neq('client_email', '');
 
-      if (error) {
-        console.error('❌ Error loading filtered contacts for count:', error);
-        throw error;
+      if (emailError) {
+        console.error('❌ Error getting unique emails:', emailError);
+        throw emailError;
+      }
+
+      const uniqueEmails = [...new Set(emailData?.map(item => item.client_email).filter(Boolean))];
+      console.log('📊 Unique emails found:', uniqueEmails.length, uniqueEmails);
+
+      // Get count for each email using consistent query
+      const counts: ContactCountByEmail = {};
+      
+      for (const email of uniqueEmails) {
+        const count = await getContactCountByEmail(email);
+        counts[email] = count;
       }
       
-      // Count contacts per email (excluding null/empty)
-      const counts: ContactCountByEmail = {};
-      data?.forEach(contact => {
-        const email = contact.client_email || 'unknown';
-        counts[email] = (counts[email] || 0) + 1;
-      });
-      
-      console.log('📊 Final filtered counts:', counts);
-      console.log(`🎯 Peter Kang final count: ${counts[peterEmail] || 0}`);
-      
-      setContactCountsByEmail(counts);
+      console.log('📊 Final counts by email:', counts);
+      return counts;
     } catch (error) {
-      console.error('Error loading contact counts by email:', error);
-      setContactCountsByEmail({});
+      console.error('❌ Error in getAllContactCountsByEmail:', error);
+      return {};
     }
   };
 
-  const loadTotalContactsCount = async () => {
+  const getFilteredContactsCount = async (searchTerm: string, selectedClient: string): Promise<number> => {
     try {
-      console.log('🔢 Loading total contacts count...');
-      const { count, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('*', { count: 'exact', head: true });
-
-      if (error) {
-        console.error('❌ Error loading total contacts count:', error);
-        throw error;
+      console.log(`🔍 Getting filtered count for search: "${searchTerm}", client: "${selectedClient}"`);
+      
+      let query = getBaseContactQuery().select('*', { count: 'exact', head: true });
+      
+      // Apply client filter
+      if (selectedClient !== 'all') {
+        query = query.eq('client_email', selectedClient);
       }
       
-      console.log('🔢 Total contacts count from Supabase:', count || 0);
-      setTotalContactsCount(count || 0);
+      // Apply search filter - we need to get data for text search since Supabase doesn't support ilike on count
+      if (searchTerm) {
+        const { data, error } = await getBaseContactQuery()
+          .select('full_name, company_name, job_title, work_email, client_email');
+          
+        if (error) throw error;
+        
+        const filtered = data?.filter(contact => {
+          const matchesSearch = !searchTerm || 
+            contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            contact.work_email?.toLowerCase().includes(searchTerm.toLowerCase());
+          
+          const matchesClient = selectedClient === 'all' || contact.client_email === selectedClient;
+          
+          return matchesSearch && matchesClient;
+        }) || [];
+        
+        console.log(`🔍 Filtered count: ${filtered.length}`);
+        return filtered.length;
+      }
+      
+      // If no search term, just apply client filter
+      const { count, error } = await query;
+      if (error) throw error;
+      
+      const filteredCount = count || 0;
+      console.log(`🔍 Filtered count (no search): ${filteredCount}`);
+      return filteredCount;
     } catch (error) {
-      console.error('Error loading total contacts count:', error);
-      // Fallback to filtered contacts length if Supabase fails
-      setTotalContactsCount(contacts.length);
+      console.error('❌ Error in getFilteredContactsCount:', error);
+      return 0;
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      console.log('🚀 Starting data load...');
+      
+      // Load all data in parallel
+      const [
+        clientsData,
+        contactsData,
+        totalCount,
+        sentCount,
+        countsByEmail,
+        uniqueEmails
+      ] = await Promise.all([
+        loadClients(), 
+        loadContacts(), 
+        getTotalContactsCount(), 
+        getSentContactsCount(),
+        getAllContactCountsByEmail(),
+        loadUniqueClientEmails()
+      ]);
+
+      // Set all the state
+      setTotalContactsCount(totalCount);
+      setSentContactsCount(sentCount);
+      setContactCountsByEmail(countsByEmail);
+      setUniqueClientEmails(uniqueEmails);
+      
+      // Get filtered count for current view
+      const filteredCount = await getFilteredContactsCount(searchTerm, selectedClient);
+      setFilteredContactsCount(filteredCount);
+      
+      setLastUpdated(new Date().toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      }));
+      
+      console.log('✅ Data load complete');
+    } catch (error) {
+      console.error('❌ Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update filtered count when search or client changes
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      getFilteredContactsCount(searchTerm, selectedClient).then(setFilteredContactsCount);
+    }
+  }, [searchTerm, selectedClient, isAuthenticated, loading]);
+
+  const loadUniqueClientEmails = async (): Promise<string[]> => {
+    try {
+      console.log('📧 Loading unique client emails...');
+      const { data, error } = await getBaseContactQuery()
+        .select('client_email')
+        .not('client_email', 'is', null)
+        .neq('client_email', '');
+
+      if (error) throw error;
+      
+      // Get unique emails
+      const uniqueEmails = [...new Set(data?.map(contact => contact.client_email).filter(Boolean))];
+      console.log('📧 Unique emails loaded:', uniqueEmails.length, uniqueEmails);
+      return uniqueEmails;
+    } catch (error) {
+      console.error('❌ Error loading unique client emails:', error);
+      return [];
     }
   };
 
@@ -318,10 +350,11 @@ const App: React.FC = () => {
 
       if (error) throw error;
       setClients(data || []);
+      return data || [];
     } catch (error) {
       console.error('Error loading clients:', error);
       // Fallback to mock data
-      setClients([
+      const mockClients = [
         {
           email_address: 'peter.kang@barrelny.com',
           full_name: 'Peter Kang',
@@ -334,32 +367,26 @@ const App: React.FC = () => {
           first_name: 'Leonard',
           last_name: 'Chen'
         }
-      ]);
+      ];
+      setClients(mockClients);
+      return mockClients;
     }
   };
 
   const loadContacts = async () => {
     try {
       console.log('👥 Loading contacts...');
-      const { data, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
+      const { data, error } = await getBaseContactQuery()
         .select('*')
         .order('total_lead_score', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error loading contacts:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      console.log('👥 Total accessible records:', data?.length || 0);
-      
-      // Check specifically for Peter Kang contacts in the loaded data
-      const peterContacts = data?.filter(contact => contact.client_email === 'peter.kang@barrelny.com') || [];
-      console.log(`🎯 Peter Kang contacts in loaded data: ${peterContacts.length}`);
-      
+      console.log('👥 Contacts loaded:', data?.length || 0);
       setContacts(data || []);
+      return data || [];
     } catch (error) {
-      console.error('Error loading contacts:', error);
+      console.error('❌ Error loading contacts:', error);
       // Fallback to mock data
       const mockContacts: Contact[] = [
         {
@@ -421,6 +448,7 @@ const App: React.FC = () => {
         }
       ];
       setContacts(mockContacts);
+      return mockContacts;
     }
   };
 
@@ -431,7 +459,7 @@ const App: React.FC = () => {
   // Use unique client emails from the contacts table instead of client_details
   const clientOptions = uniqueClientEmails.map(email => ({
     value: email,
-    label: email,
+    label: `${email} (${contactCountsByEmail[email] || 0})`,
     icon: <User className="w-4 h-4" />
   }));
 
@@ -479,23 +507,29 @@ const App: React.FC = () => {
     return acc;
   }, {} as Record<string, Contact[]>);
 
-  // Calculate metrics - these stay constant regardless of search/filter
+  // Calculate metrics - separated between total counts and filtered counts
   const metricsData = [
     {
       title: 'Account Groups',
-      value: uniqueClientEmails.length // Total unique account groups
+      value: uniqueClientEmails.length,
+      subtitle: 'Total unique emails'
     },
     {
       title: 'Total Contacts', 
-      value: totalContactsCount // Total count from database, not filtered
+      value: totalContactsCount,
+      subtitle: 'All contacts in database'
+    },
+    {
+      title: 'Filtered Contacts',
+      value: filteredContactsCount,
+      subtitle: selectedClient === 'all' ? 
+        (searchTerm ? `Matching "${searchTerm}"` : 'All contacts (filtered view)') : 
+        `For ${selectedClient}`
     },
     {
       title: 'Relevant Leads',
-      value: contacts.filter(contact => isRelevantLead(contact)).length // From all contacts, not filtered
-    },
-    {
-      title: 'Sent Contacts',
-      value: sentContactsCount // Total sent contacts from database
+      value: contacts.filter(contact => isRelevantLead(contact)).length,
+      subtitle: 'From loaded contacts'
     }
   ];
 
@@ -884,7 +918,7 @@ const App: React.FC = () => {
               <div className="text-red-600 text-sm text-center">
                 {loginError}
               </div>
-            )}
+            </div>
 
             <div>
               <button
@@ -949,6 +983,7 @@ const App: React.FC = () => {
                 {metric.value.toLocaleString()}
               </div>
               <div className="text-sm text-gray-300">{metric.title}</div>
+              <div className="text-xs text-gray-400 mt-1">{metric.subtitle}</div>
             </div>
           ))}
         </div>
@@ -1004,7 +1039,7 @@ const App: React.FC = () => {
                       )}
                       <span className="font-medium text-gray-900">{email}</span>
                       <span className="ml-2 text-sm text-gray-500">
-                        {totalContactsForEmail} contacts • Relevant Leads: 
+                        <span className="font-semibold text-blue-600">{totalContactsForEmail}</span> contacts • Relevant Leads: 
                         <span className="ml-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                           {relevantLeadsCount}
                         </span>
