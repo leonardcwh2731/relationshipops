@@ -774,79 +774,87 @@ const App: React.FC = () => {
                   </button>
 
                   {isExpanded && (
-                    <div className="mt-4 overflow-x-auto">
-                      <table className="min-w-full table-fixed">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="w-56 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Contact
-                            </th>
-                            <th className="w-32 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Job Title
-                            </th>
-                            <th className="w-48 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Company
-                            </th>
-                            <th className="w-20 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Score
-                            </th>
-                            <th className="w-32 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {emailContacts
-                            .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
-                            .map((contact) => (
-                            <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
-                              <td className="w-56 px-3 py-4">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-gray-900 truncate">{contact.full_name}</div>
-                                  <a 
-                                    href={`mailto:${contact.work_email}`}
-                                    className="text-sm text-blue-600 truncate hover:underline"
-                                  >
-                                    {contact.work_email}
-                                  </a>
-                                </div>
-                              </td>
-                              <td className="w-32 px-2 py-4">
-                                <div className="text-sm text-gray-900 truncate">
-                                  {contact.job_title}
-                                </div>
-                              </td>
-                              <td className="w-48 px-3 py-4">
-                                <div className="min-w-0">
-                                  <div className="text-sm text-gray-900 truncate">{contact.company_name}</div>
-                                  <a 
-                                    href={`https://${contact.company_domain}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 truncate hover:underline"
-                                  >
-                                    {contact.company_domain}
-                                  </a>
-                                </div>
-                              </td>
-                              <td className="w-20 px-2 py-4">
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  {contact.total_lead_score || 0}
-                                </span>
-                              </td>
-                              <td className="w-32 px-3 py-4">
-                                <button
-                                  onClick={() => handleShowDetails(contact)}
-                                  className="text-black hover:text-gray-700 text-sm whitespace-nowrap flex items-center min-w-max"
-                                >
-                                  <ChevronRight className="w-4 h-4 mr-1 flex-shrink-0" />
-                                  <span className="flex-shrink-0">Show Details</span>
-                                </button>
-                              </td>
+                    <div className="mt-4">
+                      <div className="max-w-full overflow-x-auto">
+                        <table className="min-w-full table-fixed" style={{ width: '100%', maxWidth: '100vw' }}>
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="w-44 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Contact
+                              </th>
+                              <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Job Title
+                              </th>
+                              <th className="w-40 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Company
+                              </th>
+                              <th className="w-16 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Score
+                              </th>
+                              <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {emailContacts
+                              .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
+                              .map((contact) => (
+                              <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
+                                <td className="w-44 px-2 py-4">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-medium text-gray-900 truncate" title={contact.full_name}>
+                                      {contact.full_name}
+                                    </div>
+                                    <a 
+                                      href={`mailto:${contact.work_email}`}
+                                      className="text-xs text-blue-600 truncate hover:underline block"
+                                      title={contact.work_email}
+                                    >
+                                      {contact.work_email}
+                                    </a>
+                                  </div>
+                                </td>
+                                <td className="w-28 px-2 py-4">
+                                  <div className="text-sm text-gray-900 truncate" title={contact.job_title}>
+                                    {contact.job_title}
+                                  </div>
+                                </td>
+                                <td className="w-40 px-2 py-4">
+                                  <div className="min-w-0">
+                                    <div className="text-sm text-gray-900 truncate" title={contact.company_name}>
+                                      {contact.company_name}
+                                    </div>
+                                    <a 
+                                      href={`https://${contact.company_domain}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-blue-600 truncate hover:underline block"
+                                      title={contact.company_domain}
+                                    >
+                                      {contact.company_domain}
+                                    </a>
+                                  </div>
+                                </td>
+                                <td className="w-16 px-2 py-4">
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 w-full justify-center">
+                                    {contact.total_lead_score || 0}
+                                  </span>
+                                </td>
+                                <td className="w-28 px-2 py-4">
+                                  <button
+                                    onClick={() => handleShowDetails(contact)}
+                                    className="text-black hover:text-gray-700 text-xs whitespace-nowrap flex items-center w-full"
+                                  >
+                                    <ChevronRight className="w-3 h-3 mr-1 flex-shrink-0" />
+                                    <span className="flex-shrink-0">Show Details</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
