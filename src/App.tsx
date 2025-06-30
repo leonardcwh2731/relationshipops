@@ -14,11 +14,9 @@ import {
   Pencil,
   Lock,
   LogOut,
+  Home,
   Settings,
-  Plus,
-  Edit,
-  Trash2,
-  UserPlus
+  Menu
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -35,46 +33,35 @@ interface ContactCountByEmail {
   [email: string]: number;
 }
 
-interface AppUser {
+interface UserAccount {
   id: string;
   email: string;
   password: string;
   role: 'Admin' | 'Member';
-  accountEmailRestrictions?: string[];
+  restrictedEmails?: string[];
+  createdAt: string;
 }
 
 const App: React.FC = () => {
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
 
   // Navigation states
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'settings'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'settings'>('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // User management states
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [showUserForm, setShowUserForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  // Settings states
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [userForm, setUserForm] = useState({
     email: '',
     password: '',
     role: 'Member' as 'Admin' | 'Member',
-    accountEmailRestrictions: [] as string[]
+    restrictedEmails: [] as string[]
   });
-  const [userFormError, setUserFormError] = useState('');
-  const [userFormSuccess, setUserFormSuccess] = useState('');
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-
-  // Account email search state
   const [accountEmailSearch, setAccountEmailSearch] = useState('');
 
   const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -104,42 +91,37 @@ const App: React.FC = () => {
   const [contactCountsByEmail, setContactCountsByEmail] = useState<ContactCountByEmail>({});
   const [uniqueClientEmails, setUniqueClientEmails] = useState<string[]>([]);
 
-  // Initialize default users
-  useEffect(() => {
-    const defaultUsers: AppUser[] = [
-      {
-        id: '1',
-        email: 'leonard.chin@veraops.com',
-        password: '1410202832',
-        role: 'Admin'
-      },
-      {
-        id: '2',
-        email: 'peter.kang@veraops.com',
-        password: 'relationshipopsadmin2',
-        role: 'Admin'
-      }
-    ];
-
-    const storedUsers = localStorage.getItem('relationshipops_users');
-    if (!storedUsers) {
-      localStorage.setItem('relationshipops_users', JSON.stringify(defaultUsers));
-      setUsers(defaultUsers);
-    } else {
-      setUsers(JSON.parse(storedUsers));
+  // Mock users database
+  const [users, setUsers] = useState<UserAccount[]>([
+    {
+      id: '1',
+      email: 'leonard.chin@veraops.com',
+      password: '1410202832',
+      role: 'Admin',
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: '2',
+      email: 'peter.kang@veraops.com',
+      password: 'relationshipopsadmin2',
+      role: 'Admin',
+      createdAt: new Date().toISOString()
     }
-  }, []);
+  ]);
 
   // Check authentication on load
   useEffect(() => {
-    const authStatus = localStorage.getItem('relationshipops_auth');
-    const currentUserData = localStorage.getItem('relationshipops_current_user');
-    
-    if (authStatus === 'authenticated' && currentUserData) {
-      const user = JSON.parse(currentUserData);
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      loadData();
+    const authData = localStorage.getItem('relationshipops_auth');
+    if (authData) {
+      try {
+        const userData = JSON.parse(authData);
+        setCurrentUser(userData);
+        setIsAuthenticated(true);
+        loadData();
+      } catch (error) {
+        localStorage.removeItem('relationshipops_auth');
+        setLoading(false);
+      }
     } else {
       setLoading(false);
     }
@@ -167,172 +149,15 @@ const App: React.FC = () => {
     };
   }, [showContactDetails]);
 
-  // User management functions
-  const handleCreateUser = () => {
-    setEditingUser(null);
-    setUserForm({
-      email: '',
-      password: '',
-      role: 'Member',
-      accountEmailRestrictions: []
-    });
-    setUserFormError('');
-    setUserFormSuccess('');
-    setShowUserForm(true);
-  };
-
-  const handleEditUser = (user: AppUser) => {
-    setEditingUser(user);
-    setUserForm({
-      email: user.email,
-      password: user.password,
-      role: user.role,
-      accountEmailRestrictions: user.accountEmailRestrictions || []
-    });
-    setUserFormError('');
-    setUserFormSuccess('');
-    setShowUserForm(true);
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (currentUser?.id === userId) {
-      alert('You cannot delete your own account.');
-      return;
-    }
-
-    if (confirm('Are you sure you want to delete this user?')) {
-      const updatedUsers = users.filter(user => user.id !== userId);
-      setUsers(updatedUsers);
-      localStorage.setItem('relationshipops_users', JSON.stringify(updatedUsers));
-    }
-  };
-
-  const handleSubmitUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    setUserFormError('');
-
-    // Validation
-    if (!userForm.email || !userForm.password) {
-      setUserFormError('Email and password are required.');
-      return;
-    }
-
-    // Check for duplicate email (excluding current user if editing)
-    const existingUser = users.find(user => 
-      user.email === userForm.email && user.id !== editingUser?.id
-    );
-    if (existingUser) {
-      setUserFormError('A user with this email already exists.');
-      return;
-    }
-
-    const updatedUsers = [...users];
-    
-    if (editingUser) {
-      // Update existing user
-      const userIndex = updatedUsers.findIndex(user => user.id === editingUser.id);
-      if (userIndex !== -1) {
-        updatedUsers[userIndex] = {
-          ...editingUser,
-          email: userForm.email,
-          password: userForm.password,
-          role: userForm.role,
-          accountEmailRestrictions: userForm.accountEmailRestrictions.length > 0 ? userForm.accountEmailRestrictions : undefined
-        };
-      }
-    } else {
-      // Create new user
-      const newUser: AppUser = {
-        id: Date.now().toString(),
-        email: userForm.email,
-        password: userForm.password,
-        role: userForm.role,
-        accountEmailRestrictions: userForm.accountEmailRestrictions.length > 0 ? userForm.accountEmailRestrictions : undefined
-      };
-      updatedUsers.push(newUser);
-    }
-
-    setUsers(updatedUsers);
-    localStorage.setItem('relationshipops_users', JSON.stringify(updatedUsers));
-    setUserFormSuccess(editingUser ? 'User updated successfully!' : 'User created successfully!');
-    
-    setTimeout(() => {
-      setShowUserForm(false);
-      setUserFormSuccess('');
-    }, 2000);
-  };
-
-  const handleAccountEmailToggle = (email: string) => {
-    const currentRestrictions = userForm.accountEmailRestrictions;
-    if (currentRestrictions.includes(email)) {
-      setUserForm({
-        ...userForm,
-        accountEmailRestrictions: currentRestrictions.filter(e => e !== email)
-      });
-    } else {
-      setUserForm({
-        ...userForm,
-        accountEmailRestrictions: [...currentRestrictions, email]
-      });
-    }
-  };
-
-  const handleChangePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError('');
-
-    if (!currentUser) return;
-
-    // Validation
-    if (passwordForm.currentPassword !== currentUser.password) {
-      setPasswordError('Current password is incorrect.');
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters long.');
-      return;
-    }
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('New passwords do not match.');
-      return;
-    }
-
-    // Update password
-    const updatedUsers = users.map(user => 
-      user.id === currentUser.id 
-        ? { ...user, password: passwordForm.newPassword }
-        : user
-    );
-
-    const updatedCurrentUser = { ...currentUser, password: passwordForm.newPassword };
-
-    setUsers(updatedUsers);
-    setCurrentUser(updatedCurrentUser);
-    localStorage.setItem('relationshipops_users', JSON.stringify(updatedUsers));
-    localStorage.setItem('relationshipops_current_user', JSON.stringify(updatedCurrentUser));
-    
-    setPasswordSuccess('Password changed successfully!');
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    
-    setTimeout(() => {
-      setShowChangePassword(false);
-      setPasswordSuccess('');
-    }, 2000);
-  };
-
   // Authentication functions
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    
     const user = users.find(u => u.email === loginForm.email && u.password === loginForm.password);
     
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
-      localStorage.setItem('relationshipops_auth', 'authenticated');
-      localStorage.setItem('relationshipops_current_user', JSON.stringify(user));
+      localStorage.setItem('relationshipops_auth', JSON.stringify(user));
       setLoginError('');
       loadData();
     } else {
@@ -343,10 +168,9 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setActiveSection('dashboard');
     localStorage.removeItem('relationshipops_auth');
-    localStorage.removeItem('relationshipops_current_user');
     setLoginForm({ email: '', password: '' });
+    setActiveView('dashboard');
   };
 
   const loadData = async () => {
@@ -433,14 +257,22 @@ const App: React.FC = () => {
 
   const loadTotalContactsCount = async () => {
     try {
+      console.log('📊 Loading total contacts count from Supabase...');
+      
       const { count, error } = await supabase
         .from('icp_contacts_tracking_in_progress')
         .select('*', { count: 'exact', head: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase error loading total contacts count:', error);
+        throw error;
+      }
+
+      console.log('✅ Total contacts count from database:', count);
       setTotalContactsCount(count || 0);
     } catch (error) {
-      console.error('Error loading total contacts count:', error);
+      console.error('❌ Error loading total contacts count:', error);
+      console.log('🔄 Falling back to contacts array length...');
       // Fallback to filtered contacts length if Supabase fails
       setTotalContactsCount(contacts.length);
     }
@@ -484,6 +316,7 @@ const App: React.FC = () => {
 
       if (error) throw error;
       setContacts(data || []);
+      console.log('📋 Loaded contacts from database:', data?.length || 0);
     } catch (error) {
       console.error('Error loading contacts:', error);
       // Fallback to mock data
@@ -514,36 +347,6 @@ const App: React.FC = () => {
           sent_to_client: '-',
           exact_sent_date: null,
           created_at: '2025-06-28T00:30:29Z'
-        },
-        {
-          linkedin_profile_url: 'https://www.linkedin.com/in/jacob-sussman/',
-          full_name: 'Jacob Sussman',
-          first_name: 'Jacob',
-          last_name: 'Sussman',
-          job_title: 'CEO',
-          company_name: 'BX Studio',
-          company_domain: 'bx.studio',
-          company_linkedin_url: 'https://www.linkedin.com/company/bx-studio/',
-          work_email: 'jacob@bx.studio',
-          total_lead_score: 65,
-          client_email: 'peter.kang@barrelny.com',
-          last_interaction_date: '2024-01-08',
-          company_industry: 'Design',
-          company_staff_count_range: '11 - 50'
-        },
-        {
-          linkedin_profile_url: 'https://www.linkedin.com/in/david-kong/',
-          full_name: 'David Kong',
-          first_name: 'David',
-          last_name: 'Kong',
-          job_title: 'Founder',
-          company_name: 'Somm',
-          company_domain: 'somm.ai',
-          company_linkedin_url: 'https://www.linkedin.com/company/somm/',
-          work_email: 'david@somm.ai',
-          total_lead_score: 35,
-          client_email: 'peter.kang@barrelny.com',
-          last_interaction_date: '2023-05-07' // More than 6 months ago
         }
       ];
       setContacts(mockContacts);
@@ -551,11 +354,93 @@ const App: React.FC = () => {
   };
 
   const handleRefresh = () => {
+    console.log('🔄 Manual refresh triggered - reloading all data...');
     loadData();
   };
 
+  // User management functions
+  const handleCreateUser = () => {
+    setEditingUser(null);
+    setUserForm({
+      email: '',
+      password: '',
+      role: 'Member',
+      restrictedEmails: []
+    });
+    setShowUserModal(true);
+  };
+
+  const handleEditUser = (user: UserAccount) => {
+    setEditingUser(user);
+    setUserForm({
+      email: user.email,
+      password: user.password,
+      role: user.role,
+      restrictedEmails: user.restrictedEmails || []
+    });
+    setShowUserModal(true);
+  };
+
+  const handleSaveUser = () => {
+    if (editingUser) {
+      // Update existing user
+      setUsers(users.map(u => 
+        u.id === editingUser.id 
+          ? { ...u, ...userForm }
+          : u
+      ));
+    } else {
+      // Create new user
+      const newUser: UserAccount = {
+        id: Date.now().toString(),
+        ...userForm,
+        createdAt: new Date().toISOString()
+      };
+      setUsers([...users, newUser]);
+    }
+    setShowUserModal(false);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (currentUser?.id === userId) {
+      alert('Cannot delete the currently logged in user');
+      return;
+    }
+    setUsers(users.filter(u => u.id !== userId));
+  };
+
+  const handleAccountEmailToggle = (email: string) => {
+    const currentEmails = userForm.restrictedEmails || [];
+    if (currentEmails.includes(email)) {
+      setUserForm({
+        ...userForm,
+        restrictedEmails: currentEmails.filter(e => e !== email)
+      });
+    } else {
+      setUserForm({
+        ...userForm,
+        restrictedEmails: [...currentEmails, email]
+      });
+    }
+  };
+
   // Use unique client emails from the contacts table instead of client_details
-  const clientOptions = uniqueClientEmails.map(email => ({
+  const getAvailableClientOptions = () => {
+    if (currentUser?.role === 'Admin') {
+      return uniqueClientEmails;
+    }
+    
+    // For members, filter by restricted emails if set
+    if (currentUser?.restrictedEmails && currentUser.restrictedEmails.length > 0) {
+      return uniqueClientEmails.filter(email => 
+        currentUser.restrictedEmails?.includes(email)
+      );
+    }
+    
+    return uniqueClientEmails;
+  };
+
+  const clientOptions = getAvailableClientOptions().map(email => ({
     value: email,
     label: email,
     icon: <User className="w-4 h-4" />
@@ -570,33 +455,23 @@ const App: React.FC = () => {
     return lastInteraction < sixMonthsAgo;
   };
 
-  // Filter contacts based on current user's permissions
-  const getFilteredContactsForUser = () => {
-    let userFilteredContacts = contacts;
-
-    // Apply user access restrictions
-    if (currentUser?.role === 'Member' && currentUser.accountEmailRestrictions) {
-      userFilteredContacts = contacts.filter(contact => 
-        currentUser.accountEmailRestrictions!.includes(contact.client_email || '')
-      );
-    }
-
-    // Apply search and client filter
-    return userFilteredContacts.filter(contact => {
-      const matchesSearch = !searchTerm || 
-        contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.work_email?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesClient = selectedClient === 'all' || contact.client_email === selectedClient;
-      
-      return matchesSearch && matchesClient;
-    });
-  };
-
   // Filter contacts based on search and selected client
-  const filteredContacts = getFilteredContactsForUser();
+  const filteredContacts = contacts.filter(contact => {
+    const matchesSearch = !searchTerm || 
+      contact.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.job_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.work_email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesClient = selectedClient === 'all' || contact.client_email === selectedClient;
+    
+    // For members with restricted emails, filter by access
+    const hasAccess = currentUser?.role === 'Admin' || 
+      !currentUser?.restrictedEmails?.length ||
+      currentUser.restrictedEmails.includes(contact.client_email || '');
+    
+    return matchesSearch && matchesClient && hasAccess;
+  });
 
   // Group contacts by client email
   const groupedContacts = filteredContacts.reduce((acc, contact) => {
@@ -620,37 +495,44 @@ const App: React.FC = () => {
     return acc;
   }, {} as Record<string, Contact[]>);
 
-  // Calculate metrics - these stay constant regardless of search/filter but respect user permissions
-  const userAccessibleContacts = currentUser?.role === 'Member' && currentUser.accountEmailRestrictions 
-    ? contacts.filter(contact => 
-        currentUser.accountEmailRestrictions!.includes(contact.client_email || '')
-      )
-    : contacts;
+  // Calculate metrics - these stay constant regardless of search/filter but respect user access
+  const getAccessibleContacts = () => {
+    if (currentUser?.role === 'Admin') {
+      return contacts;
+    }
+    
+    if (currentUser?.restrictedEmails && currentUser.restrictedEmails.length > 0) {
+      return contacts.filter(contact => 
+        currentUser.restrictedEmails?.includes(contact.client_email || '')
+      );
+    }
+    
+    return contacts;
+  };
 
-  const userAccessibleEmails = currentUser?.role === 'Member' && currentUser.accountEmailRestrictions 
-    ? currentUser.accountEmailRestrictions
-    : uniqueClientEmails;
+  const accessibleContacts = getAccessibleContacts();
+  const accessibleUniqueEmails = currentUser?.role === 'Admin' 
+    ? uniqueClientEmails 
+    : currentUser?.restrictedEmails?.length 
+      ? uniqueClientEmails.filter(email => currentUser.restrictedEmails?.includes(email))
+      : uniqueClientEmails;
 
   const metricsData = [
     {
       title: 'Account Groups',
-      value: userAccessibleEmails.length
+      value: accessibleUniqueEmails.length
     },
     {
       title: 'Total Contacts', 
-      value: userAccessibleContacts.length
+      value: totalContactsCount // This now comes directly from the database count
     },
     {
       title: 'Relevant Leads',
-      value: userAccessibleContacts.filter(contact => isRelevantLead(contact)).length
+      value: accessibleContacts.filter(contact => isRelevantLead(contact)).length
     },
     {
       title: 'Sent Contacts',
-      value: userAccessibleContacts.filter(contact => 
-        contact.sent_to_client && 
-        contact.sent_to_client !== '-' && 
-        contact.sent_to_client !== ''
-      ).length
+      value: sentContactsCount
     }
   ];
 
@@ -691,7 +573,7 @@ const App: React.FC = () => {
 
   // Editing functions
   const handleEditField = (fieldName: string) => {
-    if (currentUser?.role === 'Member') return; // Members cannot edit
+    if (currentUser?.role !== 'Admin') return; // Only admins can edit
     
     const newEditingFields = new Set(editingFields);
     newEditingFields.add(fieldName);
@@ -745,41 +627,27 @@ const App: React.FC = () => {
     }
   };
 
-  // Helper function to get lead score color
-  const getLeadScoreColor = (score: number) => {
+  const getLeadScoreColor = (score: number | undefined) => {
+    if (!score) return 'bg-gray-100 text-gray-800';
     if (score >= 80) return 'bg-green-100 text-green-800';
     if (score >= 50) return 'bg-yellow-100 text-yellow-800';
     return 'bg-red-100 text-red-800';
   };
 
-  // Helper function to format date
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return 'N/A';
+    }
   };
 
-  // Helper function to format datetime
-  const formatDateTime = (dateString: string | null | undefined) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return `${date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })}, ${date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    })}`;
-  };
-
-  // Filter account emails based on search
+  // Filter account emails for search
   const filteredAccountEmails = uniqueClientEmails.filter(email =>
     email.toLowerCase().includes(accountEmailSearch.toLowerCase())
   );
@@ -896,15 +764,15 @@ const App: React.FC = () => {
 
     return (
       <div className="flex justify-between items-start group">
-        <span className="text-sm text-gray-500 pt-1 w-32 flex-shrink-0">{label}:</span>
-        <div className="flex items-start flex-1 justify-end">
+        <span className="text-sm text-gray-500 pt-1 flex-shrink-0 mr-4">{label}:</span>
+        <div className="flex items-start flex-1 min-w-0">
           {isEditing ? (
-            <div className="flex flex-col gap-2 w-full max-w-[300px]">
+            <div className="flex flex-col gap-2 w-full">
               {type === 'textarea' ? (
                 <textarea
                   value={displayValue}
                   onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 w-full resize-none text-right"
+                  className="text-sm border border-gray-300 rounded px-2 py-1 w-full resize-none"
                   rows={3}
                 />
               ) : (
@@ -912,10 +780,10 @@ const App: React.FC = () => {
                   type="text"
                   value={displayValue}
                   onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 w-full text-right"
+                  className="text-sm border border-gray-300 rounded px-2 py-1 w-full"
                 />
               )}
-              <div className="flex gap-1 justify-end">
+              <div className="flex gap-1">
                 <button
                   onClick={() => handleSaveField(fieldName)}
                   className="p-1 text-green-600 hover:text-green-800"
@@ -931,32 +799,30 @@ const App: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center w-full max-w-[300px]">
-              <div className="flex-1 text-right min-w-0">
-                {isLink && fieldName === 'work_email' ? (
-                  <a 
-                    href={`mailto:${displayValue}`}
-                    className="text-sm text-blue-600 hover:underline break-all"
-                  >
-                    {displayValue}
-                  </a>
-                ) : isLink && fieldName === 'company_domain' ? (
-                  <a 
-                    href={`https://${displayValue}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline break-all"
-                  >
-                    {displayValue}
-                  </a>
-                ) : isLink ? (
-                  <span className="text-sm text-blue-600 break-all">{displayValue}</span>
-                ) : (
-                  <span className="text-sm text-gray-900 break-all">
-                    {displayValue}
-                  </span>
-                )}
-              </div>
+            <div className="flex items-center justify-end w-full min-w-0">
+              {isLink && fieldName === 'work_email' ? (
+                <a 
+                  href={`mailto:${displayValue}`}
+                  className="text-sm text-blue-600 text-right hover:underline truncate"
+                >
+                  {displayValue}
+                </a>
+              ) : isLink && fieldName === 'company_domain' ? (
+                <a 
+                  href={`https://${displayValue}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 text-right hover:underline truncate"
+                >
+                  {displayValue}
+                </a>
+              ) : isLink ? (
+                <span className="text-sm text-blue-600 text-right truncate">{displayValue}</span>
+              ) : (
+                <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''} truncate`}>
+                  {fieldName.includes('date') && displayValue !== 'N/A' ? formatDate(displayValue as string) : displayValue}
+                </span>
+              )}
               {canEdit && (
                 <button
                   onClick={() => handleEditField(fieldName)}
@@ -994,7 +860,7 @@ const App: React.FC = () => {
               className="text-sm border border-gray-300 rounded px-2 py-1 w-full"
               placeholder="Enter full URL"
             />
-            <div className="flex gap-1 justify-end">
+            <div className="flex gap-1">
               <button
                 onClick={() => handleSaveField(fieldName)}
                 className="p-1 text-green-600 hover:text-green-800"
@@ -1064,7 +930,7 @@ const App: React.FC = () => {
                   value={loginForm.email}
                   onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your email address"
+                  placeholder="Enter email address"
                 />
               </div>
               <div>
@@ -1079,7 +945,7 @@ const App: React.FC = () => {
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your password"
+                  placeholder="Enter password"
                 />
               </div>
             </div>
@@ -1115,106 +981,305 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg flex flex-col h-screen">
-        {/* Logo Section */}
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900">RelationshipOps</h1>
-          <p className="text-sm text-gray-500">Powered By VeraOps</p>
-        </div>
-
-        {/* User Info */}
-        <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center text-sm font-medium">
-              {currentUser?.email.charAt(0).toUpperCase()}
-            </div>
-            <div className="ml-3 min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {currentUser?.email}
-              </p>
-              <p className="text-xs text-gray-500">
-                {currentUser?.role}
-              </p>
-            </div>
+      <div className={`bg-white shadow-lg border-r border-gray-200 transition-all duration-300 ${
+        sidebarCollapsed ? 'w-16' : 'w-64'
+      }`}>
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            {!sidebarCollapsed && (
+              <div>
+                <h2 className="font-bold text-gray-900">RelationshipOps</h2>
+                <p className="text-xs text-gray-500">Powered By VeraOps</p>
+              </div>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-2 rounded-lg hover:bg-gray-100"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <div className="space-y-2">
+        <nav className="p-4 space-y-2">
+          <button
+            onClick={() => setActiveView('dashboard')}
+            className={`w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeView === 'dashboard'
+                ? 'bg-blue-100 text-blue-900'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            {!sidebarCollapsed && <span className="ml-3">Dashboard</span>}
+          </button>
+
+          {currentUser?.role === 'Admin' && (
             <button
-              onClick={() => setActiveSection('dashboard')}
-              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                activeSection === 'dashboard'
-                  ? 'bg-black text-white'
+              onClick={() => setActiveView('settings')}
+              className={`w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeView === 'settings'
+                  ? 'bg-blue-100 text-blue-900'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
-              <User className="mr-3 h-4 w-4" />
-              Dashboard
+              <Settings className="w-4 h-4" />
+              {!sidebarCollapsed && <span className="ml-3">Settings</span>}
             </button>
-            
-            {currentUser?.role === 'Admin' && (
-              <button
-                onClick={() => setActiveSection('settings')}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  activeSection === 'settings'
-                    ? 'bg-black text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Settings className="mr-3 h-4 w-4" />
-                Settings
-              </button>
-            )}
-          </div>
+          )}
         </nav>
 
-        {/* Logout Button */}
-        <div className="p-4 border-t border-gray-200">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <LogOut className="mr-3 h-4 w-4" />
-            Logout
-          </button>
+        <div className="absolute bottom-4 left-4 right-4">
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+            {!sidebarCollapsed && (
+              <div className="text-xs text-gray-500">
+                <div className="font-medium">{currentUser?.email}</div>
+                <div className="text-gray-400">{currentUser?.role}</div>
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-500 hover:text-red-600 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {activeSection === 'settings' && currentUser?.role === 'Admin' ? (
-          <div className="flex-1 p-8">
-            <div className="max-w-6xl mx-auto">
-              <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
-                  <p className="text-gray-600">Manage user accounts and permissions</p>
-                </div>
-                <div className="flex gap-4">
+        {/* Header */}
+        <div className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {activeView === 'dashboard' ? 'Dashboard' : 'Settings'}
+                </h1>
+                <p className="text-gray-600 mt-1">
+                  {activeView === 'dashboard' 
+                    ? 'Contact management and analytics' 
+                    : 'User management and permissions'
+                  }
+                </p>
+              </div>
+              {activeView === 'dashboard' && (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
                   <button
-                    onClick={() => setShowChangePassword(true)}
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
-                    Change Password
-                  </button>
-                  <button
-                    onClick={handleCreateUser}
+                    onClick={handleRefresh}
                     className="inline-flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
                   >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Create User
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
                   </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-auto">
+          {activeView === 'dashboard' ? (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {metricsData.map((metric, index) => (
+                  <div key={index} className="bg-black text-white rounded-lg p-6">
+                    <div className="text-3xl font-bold mb-2">
+                      {metric.value.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-300">{metric.title}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Search and Filter */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search contacts by name, company, job title, email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="w-64">
+                  <CustomDropdown
+                    value={selectedClient}
+                    onChange={setSelectedClient}
+                    options={clientOptions}
+                    placeholder="All Account Emails"
+                  />
                 </div>
               </div>
 
-              {/* Users Table */}
+              {/* Contacts Section */}
               <div className="bg-white rounded-lg shadow">
                 <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">System Users</h3>
+                  <h2 className="text-xl font-semibold text-gray-900">Contacts by Account Email</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Sorted by lead score (highest first) • Auto-refreshes every 30 seconds
+                  </p>
                 </div>
+
+                <div className="divide-y divide-gray-200">
+                  {Object.entries(paginatedGroupedContacts).map(([email, emailContacts]) => {
+                    const isExpanded = expandedAccounts.has(email);
+                    const relevantLeadsCount = emailContacts.filter(contact => isRelevantLead(contact)).length;
+                    const totalContactsForEmail = contactCountsByEmail[email] || emailContacts.length;
+                    
+                    return (
+                      <div key={email} className="p-4">
+                        <button
+                          onClick={() => toggleAccountExpansion(email)}
+                          className="w-full flex items-center justify-between text-left hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                        >
+                          <div className="flex items-center">
+                            {isExpanded ? (
+                              <ChevronDown className="w-5 h-5 text-gray-400 mr-2" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5 text-gray-400 mr-2" />
+                            )}
+                            <span className="font-medium text-gray-900">{email}</span>
+                            <span className="ml-2 text-sm text-gray-500">
+                              {totalContactsForEmail} contacts • Relevant Leads: 
+                              <span className="ml-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                {relevantLeadsCount}
+                              </span>
+                            </span>
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="mt-4">
+                            <div className="max-w-full overflow-x-auto">
+                              <table className="min-w-full table-fixed" style={{ width: '100%', maxWidth: '100vw' }}>
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="w-44 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Contact
+                                    </th>
+                                    <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Job Title
+                                    </th>
+                                    <th className="w-40 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Company
+                                    </th>
+                                    <th className="w-16 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Score
+                                    </th>
+                                    <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      Actions
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {emailContacts
+                                    .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
+                                    .map((contact) => (
+                                    <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
+                                      <td className="w-44 px-2 py-4">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-medium text-gray-900 truncate" title={contact.full_name}>
+                                            {contact.full_name}
+                                          </div>
+                                          <a 
+                                            href={`mailto:${contact.work_email}`}
+                                            className="text-xs text-blue-600 truncate hover:underline block"
+                                            title={contact.work_email}
+                                          >
+                                            {contact.work_email}
+                                          </a>
+                                        </div>
+                                      </td>
+                                      <td className="w-28 px-2 py-4">
+                                        <div className="text-sm text-gray-900 truncate" title={contact.job_title}>
+                                          {contact.job_title}
+                                        </div>
+                                      </td>
+                                      <td className="w-40 px-2 py-4">
+                                        <div className="min-w-0">
+                                          <div className="text-sm text-gray-900 truncate" title={contact.company_name}>
+                                            {contact.company_name}
+                                          </div>
+                                          <a 
+                                            href={`https://${contact.company_domain}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 truncate hover:underline block"
+                                            title={contact.company_domain}
+                                          >
+                                            {contact.company_domain}
+                                          </a>
+                                        </div>
+                                      </td>
+                                      <td className="w-16 px-2 py-4">
+                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getLeadScoreColor(contact.total_lead_score)}`}>
+                                          {contact.total_lead_score || 0}
+                                        </span>
+                                      </td>
+                                      <td className="w-28 px-2 py-4">
+                                        <button
+                                          onClick={() => handleShowDetails(contact)}
+                                          className="text-black hover:text-gray-700 text-sm whitespace-nowrap flex items-center w-full"
+                                        >
+                                          <ChevronRight className="w-4 h-4 mr-1 flex-shrink-0" />
+                                          <span className="flex-shrink-0">Show Details</span>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {Object.keys(paginatedGroupedContacts).length === 0 && (
+                  <div className="p-8 text-center text-gray-500">
+                    No contacts found matching your criteria.
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={handleItemsPerPageChange}
+                    totalItems={totalAccounts}
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            // Settings View
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              <div className="bg-white rounded-lg shadow">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-semibold text-gray-900">User Management</h2>
+                    <button
+                      onClick={handleCreateUser}
+                      className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                    >
+                      Add New User
+                    </button>
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -1226,9 +1291,12 @@ const App: React.FC = () => {
                           Role
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Account Restrictions
+                          Access Level
                         </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Created
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
@@ -1237,16 +1305,7 @@ const App: React.FC = () => {
                       {users.map((user) => (
                         <tr key={user.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center text-sm font-medium">
-                                {user.email.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="ml-3">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {user.email}
-                                </div>
-                              </div>
-                            </div>
+                            <div className="text-sm font-medium text-gray-900">{user.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1257,43 +1316,28 @@ const App: React.FC = () => {
                               {user.role}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900">
-                              {user.accountEmailRestrictions && user.accountEmailRestrictions.length > 0 ? (
-                                <div className="space-y-1">
-                                  {user.accountEmailRestrictions.slice(0, 2).map((email, index) => (
-                                    <div key={index} className="bg-gray-100 px-2 py-1 rounded text-xs">
-                                      {email}
-                                    </div>
-                                  ))}
-                                  {user.accountEmailRestrictions.length > 2 && (
-                                    <div className="text-xs text-gray-500">
-                                      +{user.accountEmailRestrictions.length - 2} more
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-gray-500 text-sm">Full Access</span>
-                              )}
-                            </div>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {user.role === 'Admin' ? 'Full Access' : 
+                             user.restrictedEmails?.length ? `${user.restrictedEmails.length} Account(s)` : 'All Accounts'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatDate(user.createdAt)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              Edit
+                            </button>
+                            {currentUser?.id !== user.id && (
                               <button
-                                onClick={() => handleEditUser(user)}
-                                className="text-blue-600 hover:text-blue-900"
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="text-red-600 hover:text-red-900"
                               >
-                                <Edit className="w-4 h-4" />
+                                Delete
                               </button>
-                              {user.id !== currentUser?.id && (
-                                <button
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="text-red-600 hover:text-red-900"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1302,570 +1346,264 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* User Form Modal */}
-            {showUserForm && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-lg w-full max-w-md">
-                  <div className="p-6 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {editingUser ? 'Edit User' : 'Create New User'}
-                    </h3>
-                  </div>
-                  
-                  <form onSubmit={handleSubmitUser} className="p-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={userForm.email}
-                        onChange={(e) => setUserForm({...userForm, email: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Password
-                      </label>
-                      <input
-                        type="password"
-                        value={userForm.password}
-                        onChange={(e) => setUserForm({...userForm, password: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Role
-                      </label>
-                      <select
-                        value={userForm.role}
-                        onChange={(e) => setUserForm({...userForm, role: e.target.value as 'Admin' | 'Member'})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                      >
-                        <option value="Member">Member</option>
-                        <option value="Admin">Admin</option>
-                      </select>
-                    </div>
-
-                    {userForm.role === 'Member' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Account Email Restrictions (optional)
-                        </label>
-                        <p className="text-xs text-gray-500 mb-2">
-                          Select which account emails this member can access. Leave empty for full access.
-                        </p>
-                        
-                        {/* Search input for account emails */}
-                        <div className="mb-2">
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                            <input
-                              type="text"
-                              placeholder="Search account emails..."
-                              value={accountEmailSearch}
-                              onChange={(e) => setAccountEmailSearch(e.target.value)}
-                              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2">
-                          {filteredAccountEmails.length > 0 ? (
-                            <div className="space-y-1">
-                              {filteredAccountEmails.map((email) => (
-                                <label key={email} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={userForm.accountEmailRestrictions.includes(email)}
-                                    onChange={() => handleAccountEmailToggle(email)}
-                                    className="w-4 h-4 text-black focus:ring-black border-gray-300 rounded"
-                                  />
-                                  <span className="text-sm text-gray-700 flex-1 min-w-0 break-all">
-                                    {email}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-500 text-center py-4">
-                              {accountEmailSearch ? 'No matching emails found' : 'No account emails available'}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {userForm.accountEmailRestrictions.length > 0 && (
-                          <div className="mt-2 text-xs text-gray-600">
-                            Selected: {userForm.accountEmailRestrictions.length} account email(s)
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {userFormError && (
-                      <div className="text-red-600 text-sm">
-                        {userFormError}
-                      </div>
-                    )}
-
-                    {userFormSuccess && (
-                      <div className="text-green-600 text-sm">
-                        {userFormSuccess}
-                      </div>
-                    )}
-
-                    <div className="flex justify-end space-x-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowUserForm(false)}
-                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                      >
-                        {editingUser ? 'Update User' : 'Create User'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* Change Password Modal */}
-            {showChangePassword && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-lg w-full max-w-md">
-                  <div className="p-6 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
-                  </div>
-                  
-                  <form onSubmit={handleChangePassword} className="p-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Current Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordForm.currentPassword}
-                        onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordForm.newPassword}
-                        onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Confirm New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordForm.confirmPassword}
-                        onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
-                        required
-                      />
-                    </div>
-
-                    {passwordError && (
-                      <div className="text-red-600 text-sm">
-                        {passwordError}
-                      </div>
-                    )}
-
-                    {passwordSuccess && (
-                      <div className="text-green-600 text-sm">
-                        {passwordSuccess}
-                      </div>
-                    )}
-
-                    <div className="flex justify-end space-x-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowChangePassword(false)}
-                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                      >
-                        Change Password
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="bg-white shadow-sm border-b border-gray-200">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center py-6">
-                  <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                    <p className="text-gray-600 mt-1">Welcome back, {currentUser?.email}</p>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
-                    <button
-                      onClick={handleRefresh}
-                      className="inline-flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Dashboard Content */}
-            <div className="flex-1 overflow-auto">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  {metricsData.map((metric, index) => (
-                    <div key={index} className="bg-black text-white rounded-lg p-6">
-                      <div className="text-3xl font-bold mb-2">
-                        {metric.value.toLocaleString()}
-                      </div>
-                      <div className="text-sm text-gray-300">{metric.title}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search contacts by name, company, job title, email..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="w-64">
-                    <CustomDropdown
-                      value={selectedClient}
-                      onChange={setSelectedClient}
-                      options={clientOptions}
-                      placeholder="All Account Emails"
-                    />
-                  </div>
-                </div>
-
-                {/* Contacts Section */}
-                <div className="bg-white rounded-lg shadow">
-                  <div className="p-6 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-900">Contacts by Account Email</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Sorted by lead score (highest first) • Auto-refreshes every 30 seconds
-                    </p>
-                  </div>
-
-                  <div className="divide-y divide-gray-200">
-                    {Object.entries(paginatedGroupedContacts).map(([email, emailContacts]) => {
-                      const isExpanded = expandedAccounts.has(email);
-                      const relevantLeadsCount = emailContacts.filter(contact => isRelevantLead(contact)).length;
-                      const totalContactsForEmail = contactCountsByEmail[email] || emailContacts.length;
-                      
-                      return (
-                        <div key={email} className="p-4">
-                          <button
-                            onClick={() => toggleAccountExpansion(email)}
-                            className="w-full flex items-center justify-between text-left hover:bg-gray-50 p-2 rounded-lg transition-colors"
-                          >
-                            <div className="flex items-center">
-                              {isExpanded ? (
-                                <ChevronDown className="w-5 h-5 text-gray-400 mr-2" />
-                              ) : (
-                                <ChevronRight className="w-5 h-5 text-gray-400 mr-2" />
-                              )}
-                              <span className="font-medium text-gray-900">{email}</span>
-                              <span className="ml-2 text-sm text-gray-500">
-                                {totalContactsForEmail} contacts • Relevant Leads: 
-                                <span className="ml-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                  {relevantLeadsCount}
-                                </span>
-                              </span>
-                            </div>
-                          </button>
-
-                          {isExpanded && (
-                            <div className="mt-4">
-                              <div className="max-w-full overflow-x-auto">
-                                <table className="min-w-full table-fixed" style={{ width: '100%', maxWidth: '100vw' }}>
-                                  <thead className="bg-gray-50">
-                                    <tr>
-                                      <th className="w-44 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Contact
-                                      </th>
-                                      <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Job Title
-                                      </th>
-                                      <th className="w-40 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Company
-                                      </th>
-                                      <th className="w-16 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Score
-                                      </th>
-                                      <th className="w-28 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Actions
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="bg-white divide-y divide-gray-200">
-                                    {emailContacts
-                                      .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
-                                      .map((contact) => (
-                                      <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
-                                        <td className="w-44 px-2 py-4">
-                                          <div className="min-w-0">
-                                            <div className="text-sm font-medium text-gray-900 truncate" title={contact.full_name}>
-                                              {contact.full_name}
-                                            </div>
-                                            <a 
-                                              href={`mailto:${contact.work_email}`}
-                                              className="text-xs text-blue-600 truncate hover:underline block"
-                                              title={contact.work_email}
-                                            >
-                                              {contact.work_email}
-                                            </a>
-                                          </div>
-                                        </td>
-                                        <td className="w-28 px-2 py-4">
-                                          <div className="text-sm text-gray-900 truncate" title={contact.job_title}>
-                                            {contact.job_title}
-                                          </div>
-                                        </td>
-                                        <td className="w-40 px-2 py-4">
-                                          <div className="min-w-0">
-                                            <div className="text-sm text-gray-900 truncate" title={contact.company_name}>
-                                              {contact.company_name}
-                                            </div>
-                                            <a 
-                                              href={`https://${contact.company_domain}`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-xs text-blue-600 truncate hover:underline block"
-                                              title={contact.company_domain}
-                                            >
-                                              {contact.company_domain}
-                                            </a>
-                                          </div>
-                                        </td>
-                                        <td className="w-16 px-2 py-4">
-                                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getLeadScoreColor(contact.total_lead_score || 0)}`}>
-                                            {contact.total_lead_score || 0}
-                                          </span>
-                                        </td>
-                                        <td className="w-28 px-2 py-4">
-                                          <button
-                                            onClick={() => handleShowDetails(contact)}
-                                            className="text-black hover:text-gray-700 text-sm whitespace-nowrap flex items-center w-full"
-                                          >
-                                            <ChevronRight className="w-4 h-4 mr-1 flex-shrink-0" />
-                                            <span className="flex-shrink-0">Show Details</span>
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {Object.keys(paginatedGroupedContacts).length === 0 && (
-                    <div className="p-8 text-center text-gray-500">
-                      No contacts found matching your criteria.
-                    </div>
-                  )}
-
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <Pagination
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      onPageChange={handlePageChange}
-                      itemsPerPage={itemsPerPage}
-                      onItemsPerPageChange={handleItemsPerPageChange}
-                      totalItems={totalAccounts}
-                    />
-                  )}
-                </div>
-
-                {/* Contact Details Modal */}
-                {showContactDetails && selectedContact && editedContact && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div 
-                      ref={modalRef}
-                      className="bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto"
-                      style={{ maxWidth: '90vw', width: 'auto', minWidth: '1200px' }}
-                    >
-                      <div className="p-6 border-b border-gray-200">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900">{selectedContact.full_name}</h3>
-                            <a 
-                              href={`mailto:${selectedContact.work_email}`}
-                              className="text-sm text-blue-600 hover:underline"
-                            >
-                              {selectedContact.work_email}
-                            </a>
-                          </div>
-                          <button
-                            onClick={handleHideDetails}
-                            className="flex items-center px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg"
-                          >
-                            <ChevronLeft className="w-4 h-4 mr-2" />
-                            Hide Details
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-6">
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1.5fr 1.8fr 3fr', // Increased Lead Info (1.5), more Company Info (1.8), extended Daily Digest (3)
-                          gap: '2rem'
-                        }}>
-                          {/* Lead Information */}
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-600 mb-4 flex items-center">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                              Lead Information
-                            </h4>
-                            <div className="space-y-3">
-                              <EditableField label="Full Name" fieldName="full_name" value={selectedContact.full_name} />
-                              <EditableField label="First Name" fieldName="first_name" value={selectedContact.first_name} />
-                              <EditableField label="Last Name" fieldName="last_name" value={selectedContact.last_name} />
-                              <EditableField label="Job Title" fieldName="job_title" value={selectedContact.job_title} />
-                              <EditableField label="Work Email" fieldName="work_email" value={selectedContact.work_email} isLink />
-                              <EditableField label="Country" fieldName="lead_country" value={selectedContact.lead_country} />
-                              <EditableField label="LinkedIn Connections" fieldName="connection_count" value={selectedContact.connection_count} />
-                              <EditableField label="LinkedIn Followers" fieldName="followers_count" value={selectedContact.followers_count} />
-                              <EditableLink 
-                                label="View Profile" 
-                                fieldName="linkedin_profile_url" 
-                                href={selectedContact.linkedin_profile_url || '#'} 
-                              />
-                            </div>
-                          </div>
-
-                          {/* Company Information - Enhanced with more space */}
-                          <div>
-                            <h4 className="text-sm font-medium text-green-600 mb-4 flex items-center">
-                              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                              Company Information
-                            </h4>
-                            <div className="space-y-3">
-                              <EditableField label="Company Name" fieldName="company_name" value={selectedContact.company_name} />
-                              <EditableField label="Company Domain" fieldName="company_domain" value={selectedContact.company_domain} isLink />
-                              <EditableField label="Company Industry" fieldName="company_industry" value={selectedContact.company_industry} />
-                              <EditableField label="Company Staff Range" fieldName="company_staff_count_range" value={selectedContact.company_staff_count_range} />
-                              <EditableLink 
-                                label="View Company" 
-                                fieldName="company_linkedin_url" 
-                                href={selectedContact.company_linkedin_url || `https://${selectedContact.company_domain}`} 
-                              />
-                            </div>
-                          </div>
-
-                          {/* Daily Digest Information - Extended layout for single row */}
-                          <div>
-                            <h4 className="text-sm font-medium text-purple-600 mb-4 flex items-center">
-                              <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
-                              Daily Digest Information
-                            </h4>
-                            <div className="space-y-3">
-                              <EditableField 
-                                label="Last Interaction Summary" 
-                                fieldName="last_interaction_summary"
-                                value={selectedContact.last_interaction_summary} 
-                                isRight 
-                                type="textarea"
-                              />
-                              <EditableField label="Last Interaction Platform" fieldName="last_interaction_platform" value={selectedContact.last_interaction_platform} isRight />
-                              <EditableField 
-                                label="Last Interaction Date" 
-                                fieldName="last_interaction_date"
-                                value={formatDateTime(selectedContact.last_interaction_date)} 
-                                isRight
-                              />
-                              <EditableField 
-                                label="Talking Point 1" 
-                                fieldName="talking_point_1"
-                                value={selectedContact.talking_point_1} 
-                                isRight 
-                                type="textarea"
-                              />
-                              <EditableField 
-                                label="Talking Point 2" 
-                                fieldName="talking_point_2"
-                                value={selectedContact.talking_point_2} 
-                                isRight 
-                                type="textarea"
-                              />
-                              <EditableField 
-                                label="Talking Point 3" 
-                                fieldName="talking_point_3"
-                                value={selectedContact.talking_point_3} 
-                                isRight 
-                                type="textarea"
-                              />
-                              <EditableField label="Sent to Client" fieldName="sent_to_client" value={selectedContact.sent_to_client} isRight />
-                              <EditableField label="Sent Date" fieldName="exact_sent_date" value={formatDate(selectedContact.exact_sent_date)} isRight />
-                              <EditableField 
-                                label="Added On" 
-                                fieldName="created_at"
-                                value={formatDateTime(selectedContact.created_at)} 
-                                isRight
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* User Modal */}
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingUser ? 'Edit User' : 'Add New User'}
+              </h3>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={userForm.password}
+                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <select
+                  value={userForm.role}
+                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value as 'Admin' | 'Member' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Member">Member</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+
+              {userForm.role === 'Member' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Account Email Access (leave empty for all accounts)
+                  </label>
+                  
+                  {/* Search box for account emails */}
+                  <div className="mb-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search account emails..."
+                        value={accountEmailSearch}
+                        onChange={(e) => setAccountEmailSearch(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                    {filteredAccountEmails.length > 0 ? (
+                      filteredAccountEmails.map((email) => (
+                        <label key={email} className="flex items-center p-3 hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={userForm.restrictedEmails.includes(email)}
+                            onChange={() => handleAccountEmailToggle(email)}
+                            className="mr-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-900 truncate flex-1" title={email}>
+                            {email}
+                          </span>
+                        </label>
+                      ))
+                    ) : (
+                      <div className="p-3 text-sm text-gray-500 text-center">
+                        No matching emails found
+                      </div>
+                    )}
+                  </div>
+                  
+                  {userForm.restrictedEmails.length > 0 && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      {userForm.restrictedEmails.length} account email(s) selected
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowUserModal(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveUser}
+                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+              >
+                {editingUser ? 'Update User' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Details Modal */}
+      {showContactDetails && selectedContact && editedContact && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div 
+            ref={modalRef}
+            className="bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto"
+            style={{ maxWidth: '90vw', width: 'auto', minWidth: '1200px' }}
+          >
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{selectedContact.full_name}</h3>
+                  <a 
+                    href={`mailto:${selectedContact.work_email}`}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    {selectedContact.work_email}
+                  </a>
+                </div>
+                <button
+                  onClick={handleHideDetails}
+                  className="flex items-center px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Hide Details
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1.3fr 2fr',
+                gap: '2rem'
+              }}>
+                {/* Lead Information */}
+                <div>
+                  <h4 className="text-sm font-medium text-blue-600 mb-4 flex items-center">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    Lead Information
+                  </h4>
+                  <div className="space-y-3">
+                    <EditableField label="Full Name" fieldName="full_name" value={selectedContact.full_name} isRight />
+                    <EditableField label="First Name" fieldName="first_name" value={selectedContact.first_name} isRight />
+                    <EditableField label="Last Name" fieldName="last_name" value={selectedContact.last_name} isRight />
+                    <EditableField label="Job Title" fieldName="job_title" value={selectedContact.job_title} isRight />
+                    <EditableField label="Work Email" fieldName="work_email" value={selectedContact.work_email} isRight isLink />
+                    <EditableField label="Country" fieldName="lead_country" value={selectedContact.lead_country} isRight />
+                    <EditableField label="LinkedIn Connections" fieldName="connection_count" value={selectedContact.connection_count} isRight />
+                    <EditableField label="LinkedIn Followers" fieldName="followers_count" value={selectedContact.followers_count} isRight />
+                    <EditableLink 
+                      label="View Profile" 
+                      fieldName="linkedin_profile_url" 
+                      href={selectedContact.linkedin_profile_url || '#'} 
+                    />
+                  </div>
+                </div>
+
+                {/* Company Information */}
+                <div>
+                  <h4 className="text-sm font-medium text-green-600 mb-4 flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    Company Information
+                  </h4>
+                  <div className="space-y-3">
+                    <EditableField label="Company Name" fieldName="company_name" value={selectedContact.company_name} isRight />
+                    <EditableField label="Company Domain" fieldName="company_domain" value={selectedContact.company_domain} isRight isLink />
+                    <EditableField label="Company Industry" fieldName="company_industry" value={selectedContact.company_industry} isRight />
+                    <EditableField label="Company Staff Range" fieldName="company_staff_count_range" value={selectedContact.company_staff_count_range} isRight />
+                    <EditableLink 
+                      label="View Company" 
+                      fieldName="company_linkedin_url" 
+                      href={selectedContact.company_linkedin_url || `https://${selectedContact.company_domain}`} 
+                    />
+                  </div>
+                </div>
+
+                {/* Daily Digest Information */}
+                <div>
+                  <h4 className="text-sm font-medium text-purple-600 mb-4 flex items-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+                    Daily Digest Information
+                  </h4>
+                  <div className="space-y-3">
+                    <EditableField 
+                      label="Last Interaction Summary" 
+                      fieldName="last_interaction_summary"
+                      value={selectedContact.last_interaction_summary} 
+                      isRight 
+                      type="textarea"
+                    />
+                    <EditableField label="Last Interaction Platform" fieldName="last_interaction_platform" value={selectedContact.last_interaction_platform} isRight />
+                    <EditableField 
+                      label="Last Interaction Date" 
+                      fieldName="last_interaction_date"
+                      value={selectedContact.last_interaction_date}
+                      isRight
+                    />
+                    <EditableField 
+                      label="Talking Point 1" 
+                      fieldName="talking_point_1"
+                      value={selectedContact.talking_point_1} 
+                      isRight 
+                      type="textarea"
+                    />
+                    <EditableField 
+                      label="Talking Point 2" 
+                      fieldName="talking_point_2"
+                      value={selectedContact.talking_point_2} 
+                      isRight 
+                      type="textarea"
+                    />
+                    <EditableField 
+                      label="Talking Point 3" 
+                      fieldName="talking_point_3"
+                      value={selectedContact.talking_point_3} 
+                      isRight 
+                      type="textarea"
+                    />
+                    <EditableField label="Sent to Client" fieldName="sent_to_client" value={selectedContact.sent_to_client} isRight />
+                    <EditableField label="Sent Date" fieldName="exact_sent_date" value={selectedContact.exact_sent_date} isRight />
+                    <EditableField 
+                      label="Added On" 
+                      fieldName="created_at"
+                      value={selectedContact.created_at}
+                      isRight
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
