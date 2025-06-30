@@ -113,27 +113,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onRefresh={fetchContacts} lastUpdated={lastUpdated} />
-      
-      <MetricsCards
-        accountGroups={accountGroups}
-        totalContacts={totalContacts}
-        leadsAbove80={leadsAbove80}
-        readyContacts={readyContacts}
-      />
-      
-      <SearchAndFilter
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        selectedEmail={selectedEmail}
-        onEmailChange={setSelectedEmail}
-        availableEmails={availableEmails}
-      />
-      
-      <ContactsTable
-        contactsByEmail={contactsByEmail}
-        loading={loading}
-      />
+      <div className="max-w-7xl mx-auto">
+        <Header onRefresh={fetchContacts} lastUpdated={lastUpdated} />
+        
+        <MetricsCards
+          accountGroups={accountGroups}
+          totalContacts={totalContacts}
+          leadsAbove80={leadsAbove80}
+          readyContacts={readyContacts}
+        />
+        
+        <SearchAndFilter
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          selectedEmail={selectedEmail}
+          onEmailChange={setSelectedEmail}
+          availableEmails={availableEmails}
+        />
+      </div>
     </div>
   );
 };

@@ -33,13 +33,15 @@ export const MetricsCards: React.FC<MetricsCardsProps> = ({
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 px-6 py-6">
-      {metrics.map((metric, index) => (
-        <div key={index} className="bg-black text-white p-6 rounded-lg">
-          <div className="text-4xl font-bold mb-2">{metric.value}</div>
-          <div className="text-gray-300 text-sm">{metric.label}</div>
-        </div>
-      ))}
+    <div className="px-8 py-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {metrics.map((metric, index) => (
+          <div key={index} className="bg-black text-white p-6 rounded-2xl">
+            <div className="text-4xl font-bold mb-2">{metric.value}</div>
+            <div className="text-gray-300 text-sm font-medium">{metric.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

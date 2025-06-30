@@ -8,11 +8,11 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onRefresh, lastUpdated }) => {
   return (
-    <header className="bg-white px-6 py-4">
-      <div className="flex justify-between items-start">
+    <header className="bg-white px-8 py-6">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-1">RelationshipOps Dashboard</h1>
-          <p className="text-gray-600">Powered By VeraOps</p>
+          <p className="text-gray-500 text-base">Powered By VeraOps</p>
         </div>
         
         <div className="flex items-center space-x-4">
