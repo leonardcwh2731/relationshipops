@@ -37,13 +37,14 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
 
   return (
     <div className="px-8">
-      <div className="bg-white rounded-2xl overflow-hidden">
-        <div className="p-8 pb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Contacts by Account Email</h2>
-          <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
-        </div>
+      {/* Header aligned with search bar */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Contacts by Account Email</h2>
+        <p className="text-sm text-gray-500">Sorted by lead score (highest first) • Auto-refreshes every 30 seconds</p>
+      </div>
 
-        <div className="px-8 pb-8 space-y-3">
+      <div className="bg-white rounded-2xl overflow-hidden">
+        <div className="p-8 space-y-3">
           {Object.entries(contactsByEmail)
             .sort(([, a], [, b]) => getLeadsAbove80Count(b) - getLeadsAbove80Count(a))
             .map(([email, contacts]) => (
@@ -106,12 +107,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
                             </div>
                             
                             <div className="col-span-1">
-                              <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
-                                (contact.total_lead_score || contact.lead_score || 0) >= 90 ? 'text-green-600 bg-green-100' :
-                                (contact.total_lead_score || contact.lead_score || 0) >= 80 ? 'text-blue-600 bg-blue-100' :
-                                (contact.total_lead_score || contact.lead_score || 0) >= 70 ? 'text-yellow-600 bg-yellow-100' :
-                                'text-red-600 bg-red-100'
-                              }`}>
+                              <span className="inline-flex items-center justify-center w-10 h-10 bg-black text-white rounded-full text-sm font-bold">
                                 {contact.total_lead_score || contact.lead_score || 'N/A'}
                               </span>
                             </div>
