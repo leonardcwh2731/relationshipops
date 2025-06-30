@@ -62,7 +62,7 @@ export const ContactsList: React.FC<ContactsListProps> = ({ contactsByEmail, loa
                   <span className="font-medium text-gray-900">{email}</span>
                   <span className="text-sm text-gray-500">
                     {contacts.length.toLocaleString()} contacts • Leads Above 80:
-                    <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                    <span className="ml-2 px-3 py-1 bg-black text-white rounded-full text-xs font-bold">
                       {getLeadsAbove80Count(contacts)}
                     </span>
                   </span>
