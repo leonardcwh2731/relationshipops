@@ -44,6 +44,7 @@ const App: React.FC = () => {
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [totalContactsCount, setTotalContactsCount] = useState<number>(0);
 
   // Load clients and contacts from Supabase
   useEffect(() => {
@@ -58,7 +59,7 @@ const App: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadClients(), loadContacts()]);
+      await Promise.all([loadClients(), loadContacts(), loadTotalContactsCount()]);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { 
         hour12: false, 
         hour: '2-digit', 
@@ -69,6 +70,21 @@ const App: React.FC = () => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTotalContactsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) throw error;
+      setTotalContactsCount(count || 0);
+    } catch (error) {
+      console.error('Error loading total contacts count:', error);
+      // Fallback to filtered contacts length if Supabase fails
+      setTotalContactsCount(contacts.length);
     }
   };
 
@@ -235,7 +251,7 @@ const App: React.FC = () => {
     },
     {
       title: 'Total Contacts', 
-      value: filteredContacts.length
+      value: totalContactsCount // Use the total count from Supabase
     },
     {
       title: 'Relevant Leads',
