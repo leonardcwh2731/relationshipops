@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { MetricsCards } from './MetricsCards';
 import { SearchAndFilter } from './SearchAndFilter';
-import { ContactsTable } from './ContactsTable';
 import { supabase } from '../lib/supabase';
 import { Contact } from '../types/Contact';
 import { User } from '../App';
@@ -19,6 +18,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
   const [selectedEmail, setSelectedEmail] = useState<string>('all');
   const [availableEmails, setAvailableEmails] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [totalContactsCount, setTotalContactsCount] = useState<number>(0);
+
+  // Fetch total contacts count from Supabase
+  const fetchTotalContactsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) throw error;
+
+      setTotalContactsCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching total contacts count:', error);
+      setTotalContactsCount(0);
+    }
+  };
 
   // Fetch available client emails
   useEffect(() => {
@@ -82,18 +98,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
     }
   };
 
+  // Fetch data on component mount and when filters change
   useEffect(() => {
     fetchContacts();
+    fetchTotalContactsCount();
   }, [selectedEmail, searchTerm]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchContacts();
+      fetchTotalContactsCount();
     }, 30000);
 
     return () => clearInterval(interval);
   }, [selectedEmail, searchTerm]);
+
+  // Refresh function for manual updates
+  const handleRefresh = () => {
+    fetchContacts();
+    fetchTotalContactsCount();
+  };
 
   // Group contacts by email
   const contactsByEmail = contacts.reduce((acc, contact) => {
@@ -106,7 +131,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
   }, {} as Record<string, Contact[]>);
 
   // Calculate metrics
-  const totalContacts = contacts.length;
   const accountGroups = Object.keys(contactsByEmail).length;
   const leadsAbove80 = contacts.filter(contact => (contact.total_lead_score || contact.lead_score || 0) >= 80).length;
   const readyContacts = contacts.filter(contact => contact.sent_to_client === 'Yes').length;
@@ -114,11 +138,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onSignOut }) => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto">
-        <Header onRefresh={fetchContacts} lastUpdated={lastUpdated} />
+        <Header onRefresh={handleRefresh} lastUpdated={lastUpdated} />
         
         <MetricsCards
           accountGroups={accountGroups}
-          totalContacts={totalContacts}
+          totalContacts={totalContactsCount}
           leadsAbove80={leadsAbove80}
           readyContacts={readyContacts}
         />
