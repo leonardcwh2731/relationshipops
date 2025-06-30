@@ -908,7 +908,8 @@ const App: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div 
               ref={modalRef}
-              className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto"
+              style={{ maxWidth: '90vw', width: 'auto', minWidth: '1200px' }}
             >
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-start">
@@ -975,80 +976,76 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Daily Digest Information - Takes 2 columns */}
+                  {/* Daily Digest Information - Takes 2 columns, single row layout */}
                   <div className="col-span-2">
                     <h4 className="text-sm font-medium text-purple-600 mb-4 flex items-center">
                       <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
                       Daily Digest Information
                     </h4>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <EditableField 
-                          label="Last Interaction Summary" 
-                          fieldName="last_interaction_summary"
-                          value={selectedContact.last_interaction_summary} 
-                          isRight 
-                          type="textarea"
-                        />
-                        <EditableField label="Last Interaction Platform" fieldName="last_interaction_platform" value={selectedContact.last_interaction_platform} />
-                        <EditableField 
-                          label="Last Interaction Date" 
-                          fieldName="last_interaction_date"
-                          value={selectedContact.last_interaction_date ? 
-                            `${new Date(selectedContact.last_interaction_date).toLocaleDateString('en-US', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric'
-                            })}, ${new Date(selectedContact.last_interaction_date).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: false
-                            })}` : 'N/A'
-                          } 
-                        />
-                        <EditableField 
-                          label="Talking Point 1" 
-                          fieldName="talking_point_1"
-                          value={selectedContact.talking_point_1} 
-                          isRight 
-                          type="textarea"
-                        />
-                      </div>
-                      <div className="space-y-3">
-                        <EditableField 
-                          label="Talking Point 2" 
-                          fieldName="talking_point_2"
-                          value={selectedContact.talking_point_2} 
-                          isRight 
-                          type="textarea"
-                        />
-                        <EditableField 
-                          label="Talking Point 3" 
-                          fieldName="talking_point_3"
-                          value={selectedContact.talking_point_3} 
-                          isRight 
-                          type="textarea"
-                        />
-                        <EditableField label="Sent to Client" fieldName="sent_to_client" value={selectedContact.sent_to_client} />
-                        <EditableField label="Sent Date" fieldName="exact_sent_date" value={selectedContact.exact_sent_date} />
-                        <EditableField 
-                          label="Added On" 
-                          fieldName="created_at"
-                          value={selectedContact.created_at ? 
-                            `${new Date(selectedContact.created_at).toLocaleDateString('en-US', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric'
-                            })}, ${new Date(selectedContact.created_at).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: false
-                            })}` : 'N/A'
-                          } 
-                        />
-                      </div>
+                    <div className="space-y-3">
+                      <EditableField 
+                        label="Last Interaction Summary" 
+                        fieldName="last_interaction_summary"
+                        value={selectedContact.last_interaction_summary} 
+                        isRight 
+                        type="textarea"
+                      />
+                      <EditableField label="Last Interaction Platform" fieldName="last_interaction_platform" value={selectedContact.last_interaction_platform} />
+                      <EditableField 
+                        label="Last Interaction Date" 
+                        fieldName="last_interaction_date"
+                        value={selectedContact.last_interaction_date ? 
+                          `${new Date(selectedContact.last_interaction_date).toLocaleDateString('en-US', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                          })}, ${new Date(selectedContact.last_interaction_date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                          })}` : 'N/A'
+                        } 
+                      />
+                      <EditableField 
+                        label="Talking Point 1" 
+                        fieldName="talking_point_1"
+                        value={selectedContact.talking_point_1} 
+                        isRight 
+                        type="textarea"
+                      />
+                      <EditableField 
+                        label="Talking Point 2" 
+                        fieldName="talking_point_2"
+                        value={selectedContact.talking_point_2} 
+                        isRight 
+                        type="textarea"
+                      />
+                      <EditableField 
+                        label="Talking Point 3" 
+                        fieldName="talking_point_3"
+                        value={selectedContact.talking_point_3} 
+                        isRight 
+                        type="textarea"
+                      />
+                      <EditableField label="Sent to Client" fieldName="sent_to_client" value={selectedContact.sent_to_client} />
+                      <EditableField label="Sent Date" fieldName="exact_sent_date" value={selectedContact.exact_sent_date} />
+                      <EditableField 
+                        label="Added On" 
+                        fieldName="created_at"
+                        value={selectedContact.created_at ? 
+                          `${new Date(selectedContact.created_at).toLocaleDateString('en-US', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                          })}, ${new Date(selectedContact.created_at).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                          })}` : 'N/A'
+                        } 
+                      />
                     </div>
                   </div>
                 </div>
