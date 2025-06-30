@@ -51,7 +51,7 @@ interface Message {
 
 const App: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
@@ -60,111 +60,86 @@ const App: React.FC = () => {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Load clients for dropdown
+  // Mock data for demonstration
   useEffect(() => {
-    const loadClients = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('client_details')
-          .select('email_address, full_name, first_name, last_name')
-          .order('full_name');
-
-        if (error) throw error;
-        setClients(data || []);
-        if (data && data.length > 0) {
-          setSelectedClient(data[0].email_address);
-        }
-      } catch (error) {
-        console.error('Error loading clients:', error);
+    const mockClients: Client[] = [
+      {
+        email_address: 'peter.kang@barrelny.com',
+        full_name: 'Peter Kang',
+        first_name: 'Peter',
+        last_name: 'Kang'
+      },
+      {
+        email_address: 'leonard@ontenlabs.com',
+        full_name: 'Leonard Chen',
+        first_name: 'Leonard',
+        last_name: 'Chen'
       }
-    };
+    ];
+    
+    setClients(mockClients);
+    if (mockClients.length > 0) {
+      setSelectedClient(mockClients[0].email_address);
+    }
 
-    loadClients();
+    // Mock data
+    setContacts([
+      {
+        full_name: 'John Smith',
+        job_title: 'VP of Engineering',
+        company_name: 'Tech Corp',
+        last_interaction_date: '2024-01-15',
+        total_lead_score: 85
+      },
+      {
+        full_name: 'Sarah Johnson',
+        job_title: 'Product Manager',
+        company_name: 'StartupXYZ',
+        last_interaction_date: '2024-01-10',
+        total_lead_score: 72
+      }
+    ]);
+
+    setValueAddArticles([
+      {
+        article_headline: 'How AI is Transforming Customer Support',
+        article_link: 'https://example.com/article1',
+        article_short_summary: 'A comprehensive look at how artificial intelligence is revolutionizing customer support operations.',
+        client_full_name: 'Peter Kang',
+        created_at: '2024-01-20'
+      },
+      {
+        article_headline: 'The Future of Remote Work Technology',
+        article_link: 'https://example.com/article2',
+        article_short_summary: 'Exploring the latest tools and technologies enabling effective remote work.',
+        client_full_name: 'Leonard Chen',
+        created_at: '2024-01-18'
+      }
+    ]);
+
+    setMeetings([
+      {
+        meeting_id: 'meeting1',
+        client_full_name: 'Peter Kang',
+        meeting_summary: 'Product Demo and Q&A Session',
+        start_date_time: '2024-01-25T10:00:00Z',
+        attendee_emails: 'peter.kang@barrelny.com',
+        platform: 'Zoom'
+      }
+    ]);
+
+    setMessages([
+      {
+        message_id: 'msg1',
+        subject: 'Follow-up on our conversation',
+        from_name: 'Peter Kang',
+        to_name: 'Sales Team',
+        message_date: '2024-01-22T14:30:00Z',
+        platform: 'Email',
+        client_full_name: 'Peter Kang'
+      }
+    ]);
   }, []);
-
-  // Load data based on selected client
-  useEffect(() => {
-    if (!selectedClient) return;
-
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        await Promise.all([
-          loadContacts(),
-          loadValueAddArticles(),
-          loadMeetings(),
-          loadMessages()
-        ]);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, [selectedClient]);
-
-  const loadContacts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('icp_contacts_tracking_in_progress')
-        .select('*')
-        .eq('client_email', selectedClient)
-        .order('last_interaction_date', { ascending: false });
-
-      if (error) throw error;
-      setContacts(data || []);
-    } catch (error) {
-      console.error('Error loading contacts:', error);
-    }
-  };
-
-  const loadValueAddArticles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('potential_value_add')
-        .select('*')
-        .eq('client_email_address', selectedClient)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setValueAddArticles(data || []);
-    } catch (error) {
-      console.error('Error loading value add articles:', error);
-    }
-  };
-
-  const loadMeetings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('all_valid_calendar_event')
-        .select('*')
-        .eq('client_email', selectedClient)
-        .order('start_date_time', { ascending: false });
-
-      if (error) throw error;
-      setMeetings(data || []);
-    } catch (error) {
-      console.error('Error loading meetings:', error);
-    }
-  };
-
-  const loadMessages = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('all_valid_email_messages')
-        .select('*')
-        .eq('client_email', selectedClient)
-        .order('message_date', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setMessages(data || []);
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    }
-  };
 
   const clientOptions = clients.map(client => ({
     value: client.email_address,
@@ -180,14 +155,6 @@ const App: React.FC = () => {
       day: 'numeric'
     });
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -278,9 +245,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {contacts.length === 0 && (
-                <p className="text-center text-gray-500 py-8">No dormant contacts found</p>
-              )}
             </div>
           </div>
 
@@ -309,11 +273,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {valueAddArticles.length === 0 && (
-                <div className="col-span-full text-center text-gray-500 py-8">
-                  No value add articles found
-                </div>
-              )}
             </div>
           </div>
 
@@ -344,9 +303,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {meetings.length === 0 && (
-                <p className="text-center text-gray-500 py-8">No meetings found</p>
-              )}
             </div>
           </div>
 
@@ -373,9 +329,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
-              {messages.length === 0 && (
-                <p className="text-center text-gray-500 py-8">No recent activity found</p>
-              )}
             </div>
           </div>
         </div>
