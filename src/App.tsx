@@ -7,7 +7,8 @@ import {
   RefreshCw,
   ExternalLink,
   Eye,
-  EyeOff
+  EyeOff,
+  Edit3
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -27,143 +28,137 @@ const App: React.FC = () => {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showContactDetails, setShowContactDetails] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('');
+  const [loading, setLoading] = useState(true);
   
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
 
-  // Mock data for demonstration
+  // Load clients and contacts from Supabase
   useEffect(() => {
-    const mockClients: Client[] = [
-      {
-        email_address: 'peter.kang@barrelny.com',
-        full_name: 'Peter Kang',
-        first_name: 'Peter',
-        last_name: 'Kang'
-      },
-      {
-        email_address: 'leonard@ontenlabs.com',
-        full_name: 'Leonard Chen',
-        first_name: 'Leonard',
-        last_name: 'Chen'
-      }
-    ];
-    
-    setClients(mockClients);
-
-    // Mock contacts data
-    const mockContacts: Contact[] = [
-      {
-        linkedin_profile_url: '1',
-        full_name: 'Nadav Eitan',
-        first_name: 'Nadav',
-        last_name: 'Eitan',
-        job_title: 'CEO',
-        company_name: 'Emporus Technologies',
-        company_domain: 'emporus.com',
-        work_email: 'Nadav@emporus.com',
-        total_lead_score: 94,
-        client_email: 'peter.kang@barrelny.com',
-        last_interaction_date: '2024-01-09',
-        last_interaction_summary: 'Had planned future meetings',
-        last_interaction_platform: 'Email',
-        talking_point_1: 'Discuss maximizing insights using deep learning methodologies',
-        talking_point_2: 'Recommend strategies for integrating additional data sources effectively',
-        talking_point_3: 'Share best practices for continuously analyzing vast data sets',
-        company_industry: 'Computer Software',
-        company_staff_count_range: '11 - 50',
-        connection_count: 1131,
-        followers_count: 1128,
-        lead_country: 'United States',
-        sent_to_client: '-',
-        exact_sent_date: null,
-        created_at: '2025-06-28T00:30:29Z'
-      },
-      {
-        linkedin_profile_url: '2',
-        full_name: 'Jacob Sussman',
-        first_name: 'Jacob',
-        last_name: 'Sussman',
-        job_title: 'CEO',
-        company_name: 'BX Studio',
-        company_domain: 'bx.studio',
-        work_email: 'jacob@bx.studio',
-        total_lead_score: 94,
-        client_email: 'peter.kang@barrelny.com',
-        last_interaction_date: '2024-01-08',
-        company_industry: 'Design',
-        company_staff_count_range: '11 - 50'
-      },
-      {
-        linkedin_profile_url: '3',
-        full_name: 'David Kong',
-        first_name: 'David',
-        last_name: 'Kong',
-        job_title: 'Founder',
-        company_name: 'Somm',
-        company_domain: 'somm.ai',
-        work_email: 'david@somm.ai',
-        total_lead_score: 94,
-        client_email: 'peter.kang@barrelny.com',
-        last_interaction_date: '2024-01-07'
-      },
-      {
-        linkedin_profile_url: '4',
-        full_name: 'Andrew Vuu',
-        first_name: 'Andrew',
-        last_name: 'Vuu',
-        job_title: 'Founder',
-        company_name: 'Confetti',
-        company_domain: 'confetti.io',
-        work_email: 'andrew@confetti.io',
-        total_lead_score: 94,
-        client_email: 'peter.kang@barrelny.com',
-        last_interaction_date: '2024-01-06'
-      },
-      {
-        linkedin_profile_url: '5',
-        full_name: 'Greg Hausheer',
-        first_name: 'Greg',
-        last_name: 'Hausheer',
-        job_title: 'Head of Engineering',
-        company_name: 'Cactus',
-        company_domain: 'lightmatter.com',
-        work_email: 'greg@lightmatter.com',
-        total_lead_score: 94,
-        client_email: 'peter.kang@barrelny.com',
-        last_interaction_date: '2024-01-05'
-      },
-      {
-        linkedin_profile_url: '6',
-        full_name: 'Sarah Wilson',
-        first_name: 'Sarah',
-        last_name: 'Wilson',
-        job_title: 'Product Manager',
-        company_name: 'TechStart',
-        company_domain: 'techstart.com',
-        work_email: 'sarah@techstart.com',
-        total_lead_score: 78,
-        client_email: 'leonard@ontenlabs.com',
-        last_interaction_date: '2024-01-04'
-      }
-    ];
-
-    setContacts(mockContacts);
-    setLastUpdated(new Date().toLocaleTimeString('en-US', { 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit' 
-    }));
+    loadData();
   }, []);
 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadClients(), loadContacts()]);
+      setLastUpdated(new Date().toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      }));
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('client_details')
+        .select('email_address, full_name, first_name, last_name')
+        .order('full_name');
+
+      if (error) throw error;
+      setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      // Fallback to mock data
+      setClients([
+        {
+          email_address: 'peter.kang@barrelny.com',
+          full_name: 'Peter Kang',
+          first_name: 'Peter',
+          last_name: 'Kang'
+        },
+        {
+          email_address: 'leonard@ontenlabs.com',
+          full_name: 'Leonard Chen',
+          first_name: 'Leonard',
+          last_name: 'Chen'
+        }
+      ]);
+    }
+  };
+
+  const loadContacts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('icp_contacts_tracking_in_progress')
+        .select('*')
+        .order('total_lead_score', { ascending: false });
+
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (error) {
+      console.error('Error loading contacts:', error);
+      // Fallback to mock data
+      const mockContacts: Contact[] = [
+        {
+          linkedin_profile_url: '1',
+          full_name: 'Nadav Eitan',
+          first_name: 'Nadav',
+          last_name: 'Eitan',
+          job_title: 'CEO',
+          company_name: 'Emporus Technologies',
+          company_domain: 'emporus.com',
+          work_email: 'Nadav@emporus.com',
+          total_lead_score: 94,
+          client_email: 'peter.kang@barrelny.com',
+          last_interaction_date: '2024-01-09',
+          last_interaction_summary: 'Had planned future meetings',
+          last_interaction_platform: 'Email',
+          talking_point_1: 'Discuss maximizing insights using deep learning methodologies',
+          talking_point_2: 'Recommend strategies for integrating additional data sources effectively',
+          talking_point_3: 'Share best practices for continuously analyzing vast data sets',
+          company_industry: 'Computer Software',
+          company_staff_count_range: '11 - 50',
+          connection_count: 1131,
+          followers_count: 1128,
+          lead_country: 'United States',
+          sent_to_client: '-',
+          exact_sent_date: null,
+          created_at: '2025-06-28T00:30:29Z'
+        },
+        {
+          linkedin_profile_url: '2',
+          full_name: 'Jacob Sussman',
+          first_name: 'Jacob',
+          last_name: 'Sussman',
+          job_title: 'CEO',
+          company_name: 'BX Studio',
+          company_domain: 'bx.studio',
+          work_email: 'jacob@bx.studio',
+          total_lead_score: 94,
+          client_email: 'peter.kang@barrelny.com',
+          last_interaction_date: '2024-01-08',
+          company_industry: 'Design',
+          company_staff_count_range: '11 - 50'
+        },
+        {
+          linkedin_profile_url: '3',
+          full_name: 'David Kong',
+          first_name: 'David',
+          last_name: 'Kong',
+          job_title: 'Founder',
+          company_name: 'Somm',
+          company_domain: 'somm.ai',
+          work_email: 'david@somm.ai',
+          total_lead_score: 94,
+          client_email: 'peter.kang@barrelny.com',
+          last_interaction_date: '2023-05-07' // More than 6 months ago
+        }
+      ];
+      setContacts(mockContacts);
+    }
+  };
+
   const handleRefresh = () => {
-    setLastUpdated(new Date().toLocaleTimeString('en-US', { 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit' 
-    }));
+    loadData();
   };
 
   const clientOptions = clients.map(client => ({
@@ -171,6 +166,15 @@ const App: React.FC = () => {
     label: client.email_address,
     icon: <User className="w-4 h-4" />
   }));
+
+  // Helper function to check if interaction is older than 6 months
+  const isRelevantLead = (contact: Contact) => {
+    if (!contact.last_interaction_date) return false;
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const lastInteraction = new Date(contact.last_interaction_date);
+    return lastInteraction < sixMonthsAgo;
+  };
 
   // Filter contacts based on search and selected client
   const filteredContacts = contacts.filter(contact => {
@@ -217,8 +221,38 @@ const App: React.FC = () => {
 
   const totalContacts = filteredContacts.length;
   const accountGroups = Object.keys(groupedContacts).length;
-  const leadsAbove80 = filteredContacts.filter(c => (c.total_lead_score || 0) > 80).length;
+  const relevantLeads = filteredContacts.filter(contact => isRelevantLead(contact)).length;
   const readyContacts = 0; // Placeholder
+
+  // Field component with edit icon
+  const FieldWithEdit: React.FC<{ 
+    label: string; 
+    value: string | number | null | undefined;
+    isRight?: boolean;
+    isLink?: boolean;
+  }> = ({ label, value, isRight = false, isLink = false }) => (
+    <div className="flex justify-between items-center group">
+      <span className="text-sm text-gray-500">{label}:</span>
+      <div className="flex items-center">
+        {isLink ? (
+          <span className="text-sm text-blue-600">{value || 'N/A'}</span>
+        ) : (
+          <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''}`}>
+            {value || 'N/A'}
+          </span>
+        )}
+        <Edit3 className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" />
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -259,8 +293,8 @@ const App: React.FC = () => {
           </div>
           
           <div className="bg-black text-white rounded-lg p-6">
-            <div className="text-3xl font-bold mb-2">{leadsAbove80}</div>
-            <div className="text-sm text-gray-300">Leads Above 80</div>
+            <div className="text-3xl font-bold mb-2">{relevantLeads}</div>
+            <div className="text-sm text-gray-300">Relevant Leads</div>
           </div>
           
           <div className="bg-black text-white rounded-lg p-6">
@@ -301,7 +335,7 @@ const App: React.FC = () => {
           <div className="divide-y divide-gray-200">
             {Object.entries(groupedContacts).map(([email, emailContacts]) => {
               const isExpanded = expandedAccounts.has(email);
-              const leadsAbove80Count = emailContacts.filter(c => (c.total_lead_score || 0) > 80).length;
+              const relevantLeadsCount = emailContacts.filter(contact => isRelevantLead(contact)).length;
               
               return (
                 <div key={email} className="p-4">
@@ -317,9 +351,9 @@ const App: React.FC = () => {
                       )}
                       <span className="font-medium text-gray-900">{email}</span>
                       <span className="ml-2 text-sm text-gray-500">
-                        {emailContacts.length} contacts • Leads Above 80: 
+                        {emailContacts.length} contacts • Relevant Leads: 
                         <span className="ml-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                          {leadsAbove80Count}
+                          {relevantLeadsCount}
                         </span>
                       </span>
                     </div>
@@ -428,42 +462,19 @@ const App: React.FC = () => {
                       Lead Information
                     </h4>
                     <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Full Name:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.full_name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">First Name:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.first_name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Last Name:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.last_name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Job Title:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.job_title}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Work Email:</span>
-                        <span className="text-sm text-blue-600">{selectedContact.work_email}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Country:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.lead_country}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">LinkedIn Connections:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.connection_count}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">LinkedIn Followers:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.followers_count}</span>
-                      </div>
+                      <FieldWithEdit label="Full Name" value={selectedContact.full_name} />
+                      <FieldWithEdit label="First Name" value={selectedContact.first_name} />
+                      <FieldWithEdit label="Last Name" value={selectedContact.last_name} />
+                      <FieldWithEdit label="Job Title" value={selectedContact.job_title} />
+                      <FieldWithEdit label="Work Email" value={selectedContact.work_email} isLink />
+                      <FieldWithEdit label="Country" value={selectedContact.lead_country} />
+                      <FieldWithEdit label="LinkedIn Connections" value={selectedContact.connection_count} />
+                      <FieldWithEdit label="LinkedIn Followers" value={selectedContact.followers_count} />
                       <div className="pt-4">
-                        <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center">
+                        <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center group">
                           <ExternalLink className="w-4 h-4 mr-1" />
                           View Profile
+                          <Edit3 className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" />
                         </a>
                       </div>
                     </div>
@@ -476,26 +487,15 @@ const App: React.FC = () => {
                       Company Information
                     </h4>
                     <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Company Name:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.company_name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Company Domain:</span>
-                        <span className="text-sm text-blue-600">{selectedContact.company_domain}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Company Industry:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.company_industry}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Company Staff Range:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.company_staff_count_range}</span>
-                      </div>
+                      <FieldWithEdit label="Company Name" value={selectedContact.company_name} />
+                      <FieldWithEdit label="Company Domain" value={selectedContact.company_domain} isLink />
+                      <FieldWithEdit label="Company Industry" value={selectedContact.company_industry} />
+                      <FieldWithEdit label="Company Staff Range" value={selectedContact.company_staff_count_range} />
                       <div className="pt-4">
-                        <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center">
+                        <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center group">
                           <ExternalLink className="w-4 h-4 mr-1" />
                           View Company
+                          <Edit3 className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" />
                         </a>
                       </div>
                     </div>
@@ -508,64 +508,59 @@ const App: React.FC = () => {
                       Daily Digest Information
                     </h4>
                     <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Last Interaction Summary:</span>
-                        <span className="text-sm text-gray-900 text-right">{selectedContact.last_interaction_summary}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Last Interaction Platform:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.last_interaction_platform}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Last Interaction Date:</span>
-                        <span className="text-sm text-gray-900">
-                          {selectedContact.last_interaction_date && new Date(selectedContact.last_interaction_date).toLocaleDateString('en-US', {
+                      <FieldWithEdit 
+                        label="Last Interaction Summary" 
+                        value={selectedContact.last_interaction_summary} 
+                        isRight 
+                      />
+                      <FieldWithEdit label="Last Interaction Platform" value={selectedContact.last_interaction_platform} />
+                      <FieldWithEdit 
+                        label="Last Interaction Date" 
+                        value={selectedContact.last_interaction_date ? 
+                          `${new Date(selectedContact.last_interaction_date).toLocaleDateString('en-US', {
                             day: '2-digit',
                             month: '2-digit',
                             year: 'numeric'
-                          })}, {selectedContact.last_interaction_date && new Date(selectedContact.last_interaction_date).toLocaleTimeString('en-US', {
+                          })}, ${new Date(selectedContact.last_interaction_date).toLocaleTimeString('en-US', {
                             hour: '2-digit',
                             minute: '2-digit',
                             second: '2-digit',
                             hour12: false
-                          })}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Talking Point 1:</span>
-                        <span className="text-sm text-gray-900 text-right">{selectedContact.talking_point_1}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Talking Point 2:</span>
-                        <span className="text-sm text-gray-900 text-right">{selectedContact.talking_point_2}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Talking Point 3:</span>
-                        <span className="text-sm text-gray-900 text-right">{selectedContact.talking_point_3}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Sent to Client:</span>
-                        <span className="text-sm text-gray-900">{selectedContact.sent_to_client}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Sent Date:</span>
-                        <span className="text-sm text-gray-900">-</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Added On:</span>
-                        <span className="text-sm text-gray-900">
-                          {selectedContact.created_at && new Date(selectedContact.created_at).toLocaleDateString('en-US', {
+                          })}` : 'N/A'
+                        } 
+                      />
+                      <FieldWithEdit 
+                        label="Talking Point 1" 
+                        value={selectedContact.talking_point_1} 
+                        isRight 
+                      />
+                      <FieldWithEdit 
+                        label="Talking Point 2" 
+                        value={selectedContact.talking_point_2} 
+                        isRight 
+                      />
+                      <FieldWithEdit 
+                        label="Talking Point 3" 
+                        value={selectedContact.talking_point_3} 
+                        isRight 
+                      />
+                      <FieldWithEdit label="Sent to Client" value={selectedContact.sent_to_client} />
+                      <FieldWithEdit label="Sent Date" value="-" />
+                      <FieldWithEdit 
+                        label="Added On" 
+                        value={selectedContact.created_at ? 
+                          `${new Date(selectedContact.created_at).toLocaleDateString('en-US', {
                             day: '2-digit',
                             month: '2-digit',
                             year: 'numeric'
-                          })}, {selectedContact.created_at && new Date(selectedContact.created_at).toLocaleTimeString('en-US', {
+                          })}, ${new Date(selectedContact.created_at).toLocaleTimeString('en-US', {
                             hour: '2-digit',
                             minute: '2-digit',
                             second: '2-digit',
                             hour12: false
-                          })}
-                        </span>
-                      </div>
+                          })}` : 'N/A'
+                        } 
+                      />
                     </div>
                   </div>
                 </div>
