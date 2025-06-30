@@ -9,7 +9,9 @@ import {
   Eye,
   EyeOff,
   Edit3,
-  ChevronLeft
+  ChevronLeft,
+  Save,
+  X
 } from 'lucide-react';
 import { CustomDropdown } from './components/CustomDropdown';
 import { supabase } from './lib/supabase';
@@ -34,7 +36,10 @@ const App: React.FC = () => {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [metricsPage, setMetricsPage] = useState(1);
+  
+  // Editing states
+  const [editingFields, setEditingFields] = useState<Set<string>>(new Set());
+  const [editedContact, setEditedContact] = useState<Contact | null>(null);
   
   // Data states
   const [clients, setClients] = useState<Client[]>([]);
@@ -222,36 +227,25 @@ const App: React.FC = () => {
     return acc;
   }, {} as Record<string, Contact[]>);
 
-  // Calculate metrics for current page
-  const currentPageContacts = Object.values(paginatedGroupedContacts).flat();
+  // Calculate metrics
   const metricsData = [
     {
       title: 'Account Groups',
-      value: paginatedAccountEmails.length,
-      total: totalAccounts
+      value: totalAccounts
     },
     {
       title: 'Total Contacts', 
-      value: currentPageContacts.length,
-      total: filteredContacts.length
+      value: filteredContacts.length
     },
     {
       title: 'Relevant Leads',
-      value: currentPageContacts.filter(contact => isRelevantLead(contact)).length,
-      total: filteredContacts.filter(contact => isRelevantLead(contact)).length
+      value: filteredContacts.filter(contact => isRelevantLead(contact)).length
     },
     {
       title: 'Ready Contacts',
-      value: 0,
-      total: 0
+      value: 0
     }
   ];
-
-  // Metrics pagination (show 2 metrics at a time on mobile, all on desktop)
-  const metricsPerPage = 2;
-  const totalMetricsPages = Math.ceil(metricsData.length / metricsPerPage);
-  const metricsStartIndex = (metricsPage - 1) * metricsPerPage;
-  const paginatedMetrics = metricsData.slice(metricsStartIndex, metricsStartIndex + metricsPerPage);
 
   const toggleAccountExpansion = (email: string) => {
     const newExpanded = new Set(expandedAccounts);
@@ -265,12 +259,16 @@ const App: React.FC = () => {
 
   const handleShowDetails = (contact: Contact) => {
     setSelectedContact(contact);
+    setEditedContact({ ...contact });
     setShowContactDetails(true);
+    setEditingFields(new Set());
   };
 
   const handleHideDetails = () => {
     setShowContactDetails(false);
     setSelectedContact(null);
+    setEditedContact(null);
+    setEditingFields(new Set());
   };
 
   const handlePageChange = (page: number) => {
@@ -284,8 +282,41 @@ const App: React.FC = () => {
     setExpandedAccounts(new Set());
   };
 
-  const handleMetricsPageChange = (page: number) => {
-    setMetricsPage(page);
+  // Editing functions
+  const handleEditField = (fieldName: string) => {
+    const newEditingFields = new Set(editingFields);
+    newEditingFields.add(fieldName);
+    setEditingFields(newEditingFields);
+  };
+
+  const handleSaveField = (fieldName: string) => {
+    const newEditingFields = new Set(editingFields);
+    newEditingFields.delete(fieldName);
+    setEditingFields(newEditingFields);
+    // Here you would typically save to the database
+    console.log('Saving field:', fieldName, 'Value:', editedContact?.[fieldName as keyof Contact]);
+  };
+
+  const handleCancelEdit = (fieldName: string) => {
+    const newEditingFields = new Set(editingFields);
+    newEditingFields.delete(fieldName);
+    setEditingFields(newEditingFields);
+    // Revert the edited value
+    if (selectedContact && editedContact) {
+      setEditedContact({
+        ...editedContact,
+        [fieldName]: selectedContact[fieldName as keyof Contact]
+      });
+    }
+  };
+
+  const handleFieldChange = (fieldName: string, value: string) => {
+    if (editedContact) {
+      setEditedContact({
+        ...editedContact,
+        [fieldName]: value
+      });
+    }
   };
 
   // Pagination component
@@ -296,15 +327,13 @@ const App: React.FC = () => {
     itemsPerPage: number;
     onItemsPerPageChange: (items: number) => void;
     totalItems: number;
-    showItemsPerPage?: boolean;
   }> = ({ 
     currentPage, 
     totalPages, 
     onPageChange, 
     itemsPerPage, 
     onItemsPerPageChange, 
-    totalItems,
-    showItemsPerPage = true 
+    totalItems
   }) => {
     const getVisiblePages = () => {
       const pages = [];
@@ -334,21 +363,19 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-4">
-          {showItemsPerPage && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Show:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+              className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
           
           <div className="flex items-center gap-1">
             <button
@@ -389,27 +416,73 @@ const App: React.FC = () => {
     );
   };
 
-  // Field component with edit icon
-  const FieldWithEdit: React.FC<{ 
+  // Editable field component
+  const EditableField: React.FC<{ 
     label: string; 
+    fieldName: string;
     value: string | number | null | undefined;
     isRight?: boolean;
     isLink?: boolean;
-  }> = ({ label, value, isRight = false, isLink = false }) => (
-    <div className="flex justify-between items-center group">
-      <span className="text-sm text-gray-500">{label}:</span>
-      <div className="flex items-center">
-        {isLink ? (
-          <span className="text-sm text-blue-600">{value || 'N/A'}</span>
-        ) : (
-          <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''}`}>
-            {value || 'N/A'}
-          </span>
-        )}
-        <Edit3 className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" />
+    type?: 'text' | 'textarea';
+  }> = ({ label, fieldName, value, isRight = false, isLink = false, type = 'text' }) => {
+    const isEditing = editingFields.has(fieldName);
+    const displayValue = editedContact?.[fieldName as keyof Contact] || value || 'N/A';
+
+    return (
+      <div className="flex justify-between items-start group">
+        <span className="text-sm text-gray-500 pt-1">{label}:</span>
+        <div className="flex items-start flex-1 max-w-[200px]">
+          {isEditing ? (
+            <div className="flex flex-col gap-2 w-full">
+              {type === 'textarea' ? (
+                <textarea
+                  value={displayValue}
+                  onChange={(e) => handleFieldChange(fieldName, e.target.value)}
+                  className="text-sm border border-gray-300 rounded px-2 py-1 w-full resize-none"
+                  rows={3}
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={displayValue}
+                  onChange={(e) => handleFieldChange(fieldName, e.target.value)}
+                  className="text-sm border border-gray-300 rounded px-2 py-1 w-full"
+                />
+              )}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleSaveField(fieldName)}
+                  className="p-1 text-green-600 hover:text-green-800"
+                >
+                  <Save className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => handleCancelEdit(fieldName)}
+                  className="p-1 text-red-600 hover:text-red-800"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end w-full">
+              {isLink ? (
+                <span className="text-sm text-blue-600 text-right">{displayValue}</span>
+              ) : (
+                <span className={`text-sm text-gray-900 ${isRight ? 'text-right' : ''}`}>
+                  {displayValue}
+                </span>
+              )}
+              <Edit3 
+                className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" 
+                onClick={() => handleEditField(fieldName)}
+              />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -446,62 +519,15 @@ const App: React.FC = () => {
       {/* Dashboard Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="mb-8">
-          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {metricsData.map((metric, index) => (
-              <div key={index} className="bg-black text-white rounded-lg p-6">
-                <div className="text-3xl font-bold mb-2">
-                  {metric.value.toLocaleString()}
-                  {metric.total !== metric.value && (
-                    <span className="text-lg text-gray-300 ml-2">
-                      / {metric.total.toLocaleString()}
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-gray-300">{metric.title}</div>
-                <div className="text-xs text-gray-400 mt-1">
-                  Page {currentPage} of {totalPages}
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {metricsData.map((metric, index) => (
+            <div key={index} className="bg-black text-white rounded-lg p-6">
+              <div className="text-3xl font-bold mb-2">
+                {metric.value.toLocaleString()}
               </div>
-            ))}
-          </div>
-          
-          {/* Mobile Metrics with Pagination */}
-          <div className="md:hidden">
-            <div className="grid grid-cols-1 gap-4 mb-4">
-              {paginatedMetrics.map((metric, index) => (
-                <div key={index} className="bg-black text-white rounded-lg p-6">
-                  <div className="text-3xl font-bold mb-2">
-                    {metric.value.toLocaleString()}
-                    {metric.total !== metric.value && (
-                      <span className="text-lg text-gray-300 ml-2">
-                        / {metric.total.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-300">{metric.title}</div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    Page {currentPage} of {totalPages}
-                  </div>
-                </div>
-              ))}
+              <div className="text-sm text-gray-300">{metric.title}</div>
             </div>
-            
-            {/* Metrics Pagination */}
-            {totalMetricsPages > 1 && (
-              <div className="flex justify-center gap-2 mb-6">
-                {Array.from({ length: totalMetricsPages }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    onClick={() => handleMetricsPageChange(page)}
-                    className={`w-3 h-3 rounded-full transition-colors ${
-                      page === metricsPage ? 'bg-black' : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          ))}
         </div>
 
         {/* Search and Filter */}
@@ -572,19 +598,19 @@ const App: React.FC = () => {
                       <table className="min-w-full">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                               Contact
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                               Job Title
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                               Company
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                               Score
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
                               Actions
                             </th>
                           </tr>
@@ -594,30 +620,32 @@ const App: React.FC = () => {
                             .sort((a, b) => (b.total_lead_score || 0) - (a.total_lead_score || 0))
                             .map((contact) => (
                             <tr key={contact.linkedin_profile_url} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">{contact.full_name}</div>
-                                  <div className="text-sm text-blue-600">{contact.work_email}</div>
+                              <td className="px-3 py-4 w-1/5">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 truncate">{contact.full_name}</div>
+                                  <div className="text-sm text-blue-600 truncate">{contact.work_email}</div>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {contact.job_title}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <div className="text-sm text-gray-900">{contact.company_name}</div>
-                                  <div className="text-sm text-blue-600">{contact.company_domain}</div>
+                              <td className="px-3 py-4 w-1/5">
+                                <div className="text-sm text-gray-900 truncate">
+                                  {contact.job_title}
                                 </div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                              <td className="px-3 py-4 w-1/5">
+                                <div className="min-w-0">
+                                  <div className="text-sm text-gray-900 truncate">{contact.company_name}</div>
+                                  <div className="text-sm text-blue-600 truncate">{contact.company_domain}</div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-4 w-1/5">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {contact.total_lead_score || 0}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <td className="px-3 py-4 w-1/5">
                                 <button
                                   onClick={() => handleShowDetails(contact)}
-                                  className="text-blue-600 hover:text-blue-900 flex items-center"
+                                  className="text-blue-600 hover:text-blue-900 flex items-center text-sm"
                                 >
                                   <ChevronRight className="w-4 h-4 mr-1" />
                                   Show Details
@@ -654,7 +682,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Contact Details Modal */}
-        {showContactDetails && selectedContact && (
+        {showContactDetails && selectedContact && editedContact && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
@@ -682,19 +710,18 @@ const App: React.FC = () => {
                       Lead Information
                     </h4>
                     <div className="space-y-3">
-                      <FieldWithEdit label="Full Name" value={selectedContact.full_name} />
-                      <FieldWithEdit label="First Name" value={selectedContact.first_name} />
-                      <FieldWithEdit label="Last Name" value={selectedContact.last_name} />
-                      <FieldWithEdit label="Job Title" value={selectedContact.job_title} />
-                      <FieldWithEdit label="Work Email" value={selectedContact.work_email} isLink />
-                      <FieldWithEdit label="Country" value={selectedContact.lead_country} />
-                      <FieldWithEdit label="LinkedIn Connections" value={selectedContact.connection_count} />
-                      <FieldWithEdit label="LinkedIn Followers" value={selectedContact.followers_count} />
+                      <EditableField label="Full Name" fieldName="full_name" value={selectedContact.full_name} />
+                      <EditableField label="First Name" fieldName="first_name" value={selectedContact.first_name} />
+                      <EditableField label="Last Name" fieldName="last_name" value={selectedContact.last_name} />
+                      <EditableField label="Job Title" fieldName="job_title" value={selectedContact.job_title} />
+                      <EditableField label="Work Email" fieldName="work_email" value={selectedContact.work_email} isLink />
+                      <EditableField label="Country" fieldName="lead_country" value={selectedContact.lead_country} />
+                      <EditableField label="LinkedIn Connections" fieldName="connection_count" value={selectedContact.connection_count} />
+                      <EditableField label="LinkedIn Followers" fieldName="followers_count" value={selectedContact.followers_count} />
                       <div className="pt-4">
                         <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center group">
                           <ExternalLink className="w-4 h-4 mr-1" />
                           View Profile
-                          <Edit3 className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" />
                         </a>
                       </div>
                     </div>
@@ -707,15 +734,14 @@ const App: React.FC = () => {
                       Company Information
                     </h4>
                     <div className="space-y-3">
-                      <FieldWithEdit label="Company Name" value={selectedContact.company_name} />
-                      <FieldWithEdit label="Company Domain" value={selectedContact.company_domain} isLink />
-                      <FieldWithEdit label="Company Industry" value={selectedContact.company_industry} />
-                      <FieldWithEdit label="Company Staff Range" value={selectedContact.company_staff_count_range} />
+                      <EditableField label="Company Name" fieldName="company_name" value={selectedContact.company_name} />
+                      <EditableField label="Company Domain" fieldName="company_domain" value={selectedContact.company_domain} isLink />
+                      <EditableField label="Company Industry" fieldName="company_industry" value={selectedContact.company_industry} />
+                      <EditableField label="Company Staff Range" fieldName="company_staff_count_range" value={selectedContact.company_staff_count_range} />
                       <div className="pt-4">
                         <a href="#" className="text-blue-600 hover:text-blue-800 text-sm flex items-center group">
                           <ExternalLink className="w-4 h-4 mr-1" />
                           View Company
-                          <Edit3 className="w-3 h-3 text-gray-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-blue-600" />
                         </a>
                       </div>
                     </div>
@@ -728,14 +754,17 @@ const App: React.FC = () => {
                       Daily Digest Information
                     </h4>
                     <div className="space-y-3">
-                      <FieldWithEdit 
+                      <EditableField 
                         label="Last Interaction Summary" 
+                        fieldName="last_interaction_summary"
                         value={selectedContact.last_interaction_summary} 
                         isRight 
+                        type="textarea"
                       />
-                      <FieldWithEdit label="Last Interaction Platform" value={selectedContact.last_interaction_platform} />
-                      <FieldWithEdit 
+                      <EditableField label="Last Interaction Platform" fieldName="last_interaction_platform" value={selectedContact.last_interaction_platform} />
+                      <EditableField 
                         label="Last Interaction Date" 
+                        fieldName="last_interaction_date"
                         value={selectedContact.last_interaction_date ? 
                           `${new Date(selectedContact.last_interaction_date).toLocaleDateString('en-US', {
                             day: '2-digit',
@@ -749,25 +778,32 @@ const App: React.FC = () => {
                           })}` : 'N/A'
                         } 
                       />
-                      <FieldWithEdit 
+                      <EditableField 
                         label="Talking Point 1" 
+                        fieldName="talking_point_1"
                         value={selectedContact.talking_point_1} 
                         isRight 
+                        type="textarea"
                       />
-                      <FieldWithEdit 
+                      <EditableField 
                         label="Talking Point 2" 
+                        fieldName="talking_point_2"
                         value={selectedContact.talking_point_2} 
                         isRight 
+                        type="textarea"
                       />
-                      <FieldWithEdit 
+                      <EditableField 
                         label="Talking Point 3" 
+                        fieldName="talking_point_3"
                         value={selectedContact.talking_point_3} 
                         isRight 
+                        type="textarea"
                       />
-                      <FieldWithEdit label="Sent to Client" value={selectedContact.sent_to_client} />
-                      <FieldWithEdit label="Sent Date" value="-" />
-                      <FieldWithEdit 
+                      <EditableField label="Sent to Client" fieldName="sent_to_client" value={selectedContact.sent_to_client} />
+                      <EditableField label="Sent Date" fieldName="exact_sent_date" value={selectedContact.exact_sent_date} />
+                      <EditableField 
                         label="Added On" 
+                        fieldName="created_at"
                         value={selectedContact.created_at ? 
                           `${new Date(selectedContact.created_at).toLocaleDateString('en-US', {
                             day: '2-digit',
